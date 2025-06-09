@@ -5,3 +5,6 @@ printWidth: 120
 singleQuote: true
 trailingComma: all
 semi: true
+
+plugins:
+  - prettier-plugin-tailwindcss

@@ -84,7 +84,7 @@ function selectModel(id: ModelId) {
       <div class="flex items-center gap-2">
         <Popover v-model:open="selectModelOpen">
           <PopoverTrigger class="w-full">
-            <Button variant="ghost" class="flex items-center pr-1 pl-2">
+            <Button variant="ghost" class="flex items-center pl-2 pr-1">
               <span>{{ displayModelName(FEATURED_MODELS.find((m) => m.id === model)?.name || '') }}</span>
               <ChevronDownIcon class="mt-0.5 size-4" />
             </Button>

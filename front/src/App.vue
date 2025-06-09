@@ -3,11 +3,12 @@ import AppSidebar from '@/components/AppSidebar.vue';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { useResizeObserver } from '@vueuse/core';
 import { ref, useTemplateRef } from 'vue';
-import Chatbox from './components/Chatbox.vue';
-import type { Message } from './lib/types';
+import Chatbox from '@/components/Chatbox.vue';
+import type { Message } from '@/lib/types';
 import messagesData from '@/lib/messages.json';
+import Prose from '@/components/Prose.vue';
 
-const messages = ref<Message[]>(messagesData as Message[]);
+const messages = ref<Message[]>([]);
 
 function onSend(content: string) {
   messages.value.push({
@@ -23,22 +24,25 @@ const chatboxHeight = ref(0);
 useResizeObserver(chatboxContainer, () => {
   if (chatboxContainer.value) chatboxHeight.value = chatboxContainer.value.clientHeight;
 });
+
+function loadMessages() {
+  messages.value = messagesData as Message[];
+}
 </script>
 
 <template>
   <SidebarProvider>
-    <AppSidebar />
+    <AppSidebar @new-chat="loadMessages" />
+
     <main>
       <div :style="{ '--chatbox-height': `${chatboxHeight}px` }">
         <section>
           <template v-for="message in messages" :key="message.id">
             <div v-if="message.role === 'user'" class="mb-12 self-end">
-              <p class="bg-secondary text-secondary-foreground prose rounded-lg p-4">{{ message.content }}</p>
+              <Prose class="bg-secondary text-secondary-foreground prose rounded-lg p-4" :source="message.content" />
             </div>
-            <div v-else>
-              <div class="mb-12">
-                <p class="text-foreground prose">{{ message.content }}</p>
-              </div>
+            <div v-else class="mb-12">
+              <Prose class="text-foreground prose" :source="message.content" />
             </div>
           </template>
         </section>

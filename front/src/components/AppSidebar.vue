@@ -10,6 +10,10 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { SearchIcon } from 'lucide-vue-next';
+
+defineEmits<{
+  (e: 'new-chat'): void;
+}>();
 </script>
 
 <template>
@@ -26,7 +30,7 @@ import { SearchIcon } from 'lucide-vue-next';
 
     <SidebarContent>
       <SidebarMenuItem class="px-2">
-        <Button variant="outline" class="w-full">New Chat</Button>
+        <Button variant="outline" class="w-full" @click="$emit('new-chat')">New Chat</Button>
       </SidebarMenuItem>
 
       <SidebarMenuItem class="px-2">

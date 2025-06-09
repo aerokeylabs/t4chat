@@ -1,4 +1,6 @@
-import type { ModelId } from './models';
+import type { ModelId } from '../models';
+
+export * from './generated';
 
 export type Message = {
   id: string;

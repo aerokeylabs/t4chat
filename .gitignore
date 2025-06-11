@@ -2,3 +2,5 @@
 /api/target
 /front/dist
 /front/node_modules
+
+.env*

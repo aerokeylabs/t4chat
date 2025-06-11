@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
+import { useChatbox } from '@/composables/chatbox';
 import { useUser } from '@clerk/vue';
 import { CodeIcon, GraduationCapIcon, NewspaperIcon, SparklesIcon } from 'lucide-vue-next';
 import { computed, ref, type FunctionalComponent } from 'vue';
@@ -76,10 +77,12 @@ const prompts = computed(() => {
   if (selectedCategory.value == null) return defaultPrompts;
   return categories.get(selectedCategory.value)?.[1] ?? defaultPrompts;
 });
+
+const { value, empty, hide } = useChatbox();
 </script>
 
 <template>
-  <section class="new-chat-page">
+  <section class="new-chat-page" :class="{ 'has-message': !empty || hide }">
     <h1 class="mb-2 text-3xl font-semibold">How can I help you, {{ user?.firstName ?? 'someone' }}?</h1>
 
     <div class="flex gap-2">
@@ -97,7 +100,7 @@ const prompts = computed(() => {
 
     <div class="example-prompts">
       <div v-for="(prompt, i) in prompts" :key="i" class="w-full">
-        <Button variant="ghost" class="w-full justify-start">
+        <Button variant="ghost" class="w-full justify-start" @click="value = prompt">
           {{ prompt }}
         </Button>
       </div>
@@ -110,6 +113,10 @@ const prompts = computed(() => {
   display: flex;
   flex-direction: column;
   gap: calc(var(--spacing) * 6);
+
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.2s ease-in-out;
 
   > .example-prompts {
     display: flex;
@@ -124,6 +131,12 @@ const prompts = computed(() => {
         border-bottom: 1px solid var(--border);
       }
     }
+  }
+
+  &.has-message {
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
   }
 }
 </style>

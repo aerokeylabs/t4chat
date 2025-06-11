@@ -59,7 +59,7 @@ const navRoutes = [
         </RouterLink>
       </nav>
 
-      <main>
+      <main class="settings">
         <RouterView />
       </main>
     </div>
@@ -67,7 +67,7 @@ const navRoutes = [
 </template>
 
 <style>
-main {
+.settings {
   display: flex;
   flex-direction: column;
   height: 100%;

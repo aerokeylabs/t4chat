@@ -3,18 +3,21 @@ import { v } from 'convex/values';
 
 export default defineSchema({
   messages: defineTable({
+    role: v.string(),
+    parts: v.array(v.object({ text: v.string(), type: v.union(v.literal('text')) })),
     attachmentIds: v.array(v.any()),
     attachments: v.array(v.any()),
-    created_at: v.float64(),
-    messageId: v.string(),
-    model: v.string(),
+
+    threadId: v.string(),
+    userId: v.string(),
+
+    model: v.optional(v.string()),
     modelParams: v.optional(
       v.object({
         includeSearch: v.boolean(),
         reasoningEffort: v.string(),
       }),
     ),
-    parts: v.array(v.object({ text: v.string(), type: v.string() })),
     providerMetadata: v.optional(
       v.object({
         google: v.object({
@@ -24,17 +27,14 @@ export default defineSchema({
       }),
     ),
     resumableStreamId: v.optional(v.string()),
-    role: v.string(),
-    status: v.string(),
-    threadId: v.string(),
+    status: v.optional(v.union(v.literal('pending'), v.literal('complete'))),
     timeToFirstToken: v.optional(v.float64()),
     tokens: v.optional(v.float64()),
     tokensPerSecond: v.optional(v.float64()),
-    updated_at: v.float64(),
-    userId: v.string(),
   })
     .index('by_thread', ['threadId'])
     .index('by_user', ['userId']),
+
   settings: defineTable({
     codeFont: v.string(),
     disableHorizontalLines: v.boolean(),
@@ -47,6 +47,7 @@ export default defineSchema({
     theme: v.string(),
     userId: v.string(),
   }).index('by_user', ['userId']),
+
   threads: defineTable({
     branchParent: v.null(),
     createdAt: v.float64(),
@@ -54,7 +55,6 @@ export default defineSchema({
     lastMessageAt: v.float64(),
     model: v.string(),
     pinned: v.boolean(),
-    threadId: v.string(),
     title: v.string(),
     updatedAt: v.float64(),
     userId: v.string(),

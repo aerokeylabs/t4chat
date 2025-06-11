@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import { getMarkdownProcessor } from '@/lib/shiki';
-import { asyncComputed, useMutationObserver } from '@vueuse/core';
-import { createApp, useTemplateRef } from 'vue';
+import { useMutationObserver } from '@vueuse/core';
+import { createApp, ref, useTemplateRef, watch } from 'vue';
 import CodeblockHeader from './CodeblockHeader.vue';
 
 const props = defineProps<{
   source: string;
 }>();
 
-const html = asyncComputed(async () => {
-  const processor = await getMarkdownProcessor();
+const html = ref('');
 
-  return await processor.process(props.source);
-}, null);
+watch(
+  props,
+  async (newProps) => {
+    const processor = await getMarkdownProcessor();
+    html.value = (await processor.process(newProps.source)).toString();
+  },
+  { immediate: true },
+);
 
 const component = useTemplateRef('component');
 

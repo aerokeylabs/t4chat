@@ -10,16 +10,14 @@ use crate::prelude::*;
 use crate::routes::{RouteInfo, Router, print_routes, router};
 
 fn create_openrouter_client(config: &Config) -> OpenAIClient {
-  let client = OpenAIClient::builder()
-    .with_endpoint("https://openrouter.ai/api/v1")
-    .with_api_key(config.openrouter.api_key.expose_secret())
-    .build()
-    .unwrap();
-
   // unwrap because build function just cant fail yet returns
   // result<client, box<dyn Error>> for some reason
 
-  client
+  OpenAIClient::builder()
+    .with_endpoint("https://openrouter.ai/api/v1")
+    .with_api_key(config.openrouter.api_key.expose_secret())
+    .build()
+    .unwrap()
 }
 
 pub struct Application {

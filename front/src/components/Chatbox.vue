@@ -2,6 +2,7 @@
 import IconInput from '@/components/IconInput.vue';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useChatbox } from '@/composables/chatbox';
 import { MODELS, type ModelId } from '@/lib/models';
 import { useEventListener } from '@vueuse/core';
 import { ChevronDownIcon, GlobeIcon, PaperclipIcon, SearchIcon, Send } from 'lucide-vue-next';
@@ -30,7 +31,7 @@ const emit = defineEmits<{
 
 const textarea = useTemplateRef('textarea');
 
-const message = ref('');
+const { value: message } = useChatbox();
 
 const messageValid = computed(() => {
   return message.value.trim() !== '';

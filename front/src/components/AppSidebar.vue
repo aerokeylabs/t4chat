@@ -96,7 +96,7 @@ const threads = computed(() => {
         </SidebarGroupLabel>
 
         <SidebarMenuItem v-for="thread in group.threads" :key="thread._id">
-          <RouterLink :to="`/chat/${thread.threadId}`" custom v-slot="{ navigate }">
+          <RouterLink :to="`/chat/${thread._id}`" custom v-slot="{ navigate }">
             <Button variant="ghost" class="w-full justify-start px-2" @click="navigate">
               {{ thread.title }}
             </Button>

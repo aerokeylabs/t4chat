@@ -1,30 +1,77 @@
 <script setup lang="ts">
 import AppSidebar from '@/components/AppSidebar.vue';
 import Chatbox from '@/components/Chatbox.vue';
+import Prose from '@/components/Prose.vue';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { useResizeObserver } from '@vueuse/core';
-import { ref, useTemplateRef } from 'vue';
-import { RouterView } from 'vue-router';
+import { useChatbox } from '@/composables/chatbox';
+import { getApiUrl } from '@/lib/api';
+import { Routes } from '@/lib/types';
+import { SSE } from 'sse.js';
+import { computed, ref } from 'vue';
+import { RouterView, useRoute } from 'vue-router';
 
-function onSend(content: string) {
-  console.info('Message sent:', content);
+const route = useRoute();
+const threadId = computed(() => route.params.thread as string);
+const isInThread = computed(() => threadId.value != null);
+
+// const createThreadMutation = useMutation(api.threads.createThread);
+
+const stream = ref('');
+
+const { hide } = useChatbox();
+
+async function onSend(message: string) {
+  if (isInThread.value) {
+    console.info('send message to thread', threadId.value, 'with content', message);
+  }
+
+  console.info('create new thread with content', message);
+
+  // const thread = await createThreadMutation({
+  //   model: 'openai/gpt-4o-mini',
+  //   modelParams: { includeSearch: false, reasoningEffort: 'medium' },
+  //   message,
+  // });
+
+  // console.info('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
+
+  const source = new SSE(getApiUrl(Routes.chat()), {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    payload: JSON.stringify({
+      threadId: '', // thread.threadId,
+      responseMessageId: '', // thread.assistantMessageId,
+      messageParts: [{ type: 'text', text: message }],
+      model: 'openai/gpt-4o-mini',
+      modelParams: { includeSearch: false, reasoningEffort: 'medium' },
+    }),
+    method: 'POST',
+  });
+
+  stream.value = '';
+  hide.value = false;
+
+  source.addEventListener('message', (event: { data: string }) => {
+    stream.value += event.data;
+    hide.value = true;
+  });
 }
 
-const chatboxContainer = useTemplateRef('chatbox-container');
-const chatboxHeight = ref(0);
-
-useResizeObserver(chatboxContainer, () => {
-  if (chatboxContainer.value) chatboxHeight.value = chatboxContainer.value.clientHeight;
-});
+const chatboxHeight = ref(300);
 </script>
 
 <template>
   <SidebarProvider>
     <AppSidebar />
 
-    <main>
-      <div class="chat" :style="{ '--chatbox-height': `${chatboxHeight}px` }">
+    <main class="chat">
+      <div class="messages" :style="{ '--chatbox-height': `${chatboxHeight}px` }">
         <RouterView />
+
+        <div class="max-w-4xl p-4">
+          <Prose :source="stream" />
+        </div>
       </div>
 
       <div ref="chatbox-container" class="chatbox-container">
@@ -35,7 +82,7 @@ useResizeObserver(chatboxContainer, () => {
 </template>
 
 <style>
-main {
+.chat {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -54,7 +101,7 @@ main {
   line-height: 1.75;
 }
 
-.chat {
+.messages {
   display: flex;
   flex-direction: column;
   align-items: center;

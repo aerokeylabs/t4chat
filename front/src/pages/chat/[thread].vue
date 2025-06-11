@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import AssistantMessage from '@/components/messages/AssistantMessage.vue';
 import UserMessage from '@/components/messages/UserMessage.vue';
-import { useQuery } from '@/composables/convex';
+import { useReactiveQuery } from '@/composables/convex';
 import { api } from '@/convex/_generated/api';
 import type { Message } from '@/lib/types/convex';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
-const threadId = useRoute().params.thread as string;
+const route = useRoute();
+const args = computed(() => ({ threadId: route.params.thread as string }));
 
-const { data: dawa, error } = useQuery(api.messages.getMessagesByThread, { threadId });
+const { data: dawa, error } = useReactiveQuery(api.messages.getMessagesByThread, args);
 
 const messages = computed(() => {
   if (!dawa.value) return [];

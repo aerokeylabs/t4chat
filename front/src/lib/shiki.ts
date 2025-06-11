@@ -130,6 +130,7 @@ async function createProcessor() {
     .use(remarkBreaks)
     .use(remarkRehype)
     .use(rehypeShikiFromHighlighter, highlighter as any, {
+      inline: 'tailing-curly-colon',
       themes: {
         light: 'min-light',
         dark: 'min-dark',

@@ -1,4 +1,6 @@
 use anyhow::Context;
+use openai_api_rs::v1::api::OpenAIClient;
+use secrecy::ExposeSecret;
 use snowflake::SnowflakeGenerator;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
@@ -6,6 +8,19 @@ use tower_http::cors::CorsLayer;
 use crate::config::{Config, EPOCH_MS};
 use crate::prelude::*;
 use crate::routes::{RouteInfo, Router, print_routes, router};
+
+fn create_openrouter_client(config: &Config) -> OpenAIClient {
+  let client = OpenAIClient::builder()
+    .with_endpoint("https://openrouter.ai/api/v1")
+    .with_api_key(config.openrouter.api_key.expose_secret())
+    .build()
+    .unwrap();
+
+  // unwrap because build function just cant fail yet returns
+  // result<client, box<dyn Error>> for some reason
+
+  client
+}
 
 pub struct Application {
   port: u16,
@@ -16,6 +31,8 @@ pub struct Application {
 
 impl Application {
   pub async fn build(config: Config) -> anyhow::Result<Self> {
+    let openrouter_client = create_openrouter_client(&config);
+
     let snowflakes = SnowflakeGenerator::new(config.snowflake.worker, config.snowflake.process, EPOCH_MS);
 
     let address = format!("{}:{}", config.application.host, config.application.port);
@@ -26,7 +43,7 @@ impl Application {
 
     let port = listener.local_addr()?.port();
 
-    let (state, router) = create_router(snowflakes);
+    let (state, router) = create_router(openrouter_client, snowflakes);
 
     Ok(Self {
       port,
@@ -66,8 +83,8 @@ async fn root() -> &'static str {
   "hello awa"
 }
 
-fn create_router(snowflakes: SnowflakeGenerator) -> (AppState, Router<AppState>) {
-  let state = AppState::new(snowflakes);
+fn create_router(openrouter_client: OpenAIClient, snowflakes: SnowflakeGenerator) -> (AppState, Router<AppState>) {
+  let state = AppState::new(openrouter_client, snowflakes);
 
   let router = router(state.clone()).get("/", root);
 

@@ -1,19 +1,26 @@
 use std::env;
 
 use anyhow::{Context, bail};
+use secrecy::SecretString;
 
 #[derive(Debug, Clone)]
 pub struct Config {
   pub application: ApplicationConfig,
   pub snowflake: SnowflakeConfig,
+  pub openrouter: OpenrouterConfig,
 }
 
 impl Config {
   pub fn from_env() -> anyhow::Result<Self> {
     let application = ApplicationConfig::from_env()?;
     let snowflake = SnowflakeConfig::from_env()?;
+    let openrouter = OpenrouterConfig::from_env()?;
 
-    Ok(Self { application, snowflake })
+    Ok(Self {
+      application,
+      snowflake,
+      openrouter,
+    })
   }
 }
 
@@ -58,6 +65,27 @@ impl SnowflakeConfig {
     let process = (std::process::id() % snowflake::PROCESS_MAX as u32) as u8;
 
     Ok(Self { worker, process })
+  }
+}
+
+#[derive(Debug, Clone)]
+pub struct OpenrouterConfig {
+  pub api_key: SecretString,
+}
+
+impl OpenrouterConfig {
+  const API_KEY: &'static str = "OPENROUTER_API_KEY";
+
+  fn from_env() -> anyhow::Result<Self> {
+    let api_key = get_var(Self::API_KEY)?;
+
+    if api_key.is_empty() {
+      bail!("{} must not be empty", Self::API_KEY);
+    }
+
+    let api_key = SecretString::from(api_key);
+
+    Ok(Self { api_key })
   }
 }
 

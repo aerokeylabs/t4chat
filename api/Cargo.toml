@@ -27,6 +27,7 @@ tracing-subscriber = { version = "0.3", features = ["chrono", "fmt", "json"] }
 regex = "1.11"
 futures = "0.3"
 owo-colors = "4.2"
+openai-api-rs = "6.0.6"
 
 [dependencies.specta]
 features = ["derive", "export"]

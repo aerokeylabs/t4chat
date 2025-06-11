@@ -3,6 +3,10 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
 
+    "composite": true,
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,
@@ -13,6 +17,7 @@
 
     "baseUrl": ".",
     "paths": {
+      "@/convex/*": ["./convex/*"],
       "@/*": ["./src/*"]
     }
   },

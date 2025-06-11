@@ -2,12 +2,6 @@ import type { ModelId } from '../models';
 
 export * from './generated';
 
-export type Message = {
-  id: string;
-  content: string;
-  role: 'user' | 'assistant';
-};
-
 // model list
 
 export type Model = {

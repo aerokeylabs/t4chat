@@ -1,4 +1,5 @@
 use anyhow::Context;
+use convex::ConvexClient;
 use openai_api_rs::v1::api::OpenAIClient;
 use secrecy::ExposeSecret;
 use snowflake::SnowflakeGenerator;
@@ -20,6 +21,12 @@ fn create_openrouter_client(config: &Config) -> OpenAIClient {
     .unwrap()
 }
 
+async fn create_convex_client(config: &Config) -> anyhow::Result<ConvexClient> {
+  ConvexClient::new(&config.convex.deployment_url)
+    .await
+    .context("failed to create Convex client")
+}
+
 pub struct Application {
   port: u16,
   listener: TcpListener,
@@ -29,7 +36,8 @@ pub struct Application {
 
 impl Application {
   pub async fn build(config: Config) -> anyhow::Result<Self> {
-    let openrouter_client = create_openrouter_client(&config);
+    let openrouter = create_openrouter_client(&config);
+    let convex = create_convex_client(&config).await?;
 
     let snowflakes = SnowflakeGenerator::new(config.snowflake.worker, config.snowflake.process, EPOCH_MS);
 
@@ -41,7 +49,7 @@ impl Application {
 
     let port = listener.local_addr()?.port();
 
-    let (state, router) = create_router(openrouter_client, snowflakes);
+    let (state, router) = create_router(openrouter, convex, snowflakes);
 
     Ok(Self {
       port,
@@ -81,8 +89,12 @@ async fn root() -> &'static str {
   "hello awa"
 }
 
-fn create_router(openrouter_client: OpenAIClient, snowflakes: SnowflakeGenerator) -> (AppState, Router<AppState>) {
-  let state = AppState::new(openrouter_client, snowflakes);
+fn create_router(
+  openrouter: OpenAIClient,
+  convex: ConvexClient,
+  snowflakes: SnowflakeGenerator,
+) -> (AppState, Router<AppState>) {
+  let state = AppState::new(openrouter, convex, snowflakes);
 
   let router = router(state.clone()).get("/", root);
 

@@ -1,6 +1,9 @@
+use std::collections::BTreeMap;
+
 use axum::response::Sse;
 use axum::response::sse::Event;
-use futures::Stream;
+use convex::Value;
+use futures::{Stream, StreamExt, TryStreamExt};
 
 use crate::into_response;
 use crate::prelude::*;
@@ -34,11 +37,14 @@ pub struct CreateChatRequest {
 pub enum CreateChatError {
   #[error("unexpected error: {0}")]
   UnexpectedError(#[from] anyhow::Error),
+  #[error("failed to get response message: {0}")]
+  GetResponseMessageError(anyhow::Error),
 }
 
 into_response!(
   CreateChatError {
-    UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR
+    UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    GetResponseMessageError(_) => StatusCode::BAD_REQUEST,
   }
 );
 
@@ -52,26 +58,60 @@ pub fn str_chunks(s: &str, chunk_size: usize) -> Vec<String> {
     .collect()
 }
 
-#[tracing::instrument("create chat", skip(_state))]
-#[axum::debug_handler]
-pub async fn create_chat(
-  State(_state): State<AppState>,
-  Json(payload): Json<CreateChatRequest>,
-) -> Sse<impl Stream<Item = Result<Event, CreateChatError>>> {
-  // send stream of 10 character chunks of DATA every 100ms
-
-  info!("creating chat with payload: {:?}", payload);
-
+fn stream_data() -> impl Stream<Item = String> {
   let chunks = str_chunks(DATA, 4);
 
-  let stream = async_stream::stream! {
-    let mut interval = tokio::time::interval(std::time::Duration::from_millis(10));
+  async_stream::stream! {
+    let mut interval = tokio::time::interval(std::time::Duration::from_millis(50));
+
     for text in chunks {
       interval.tick().await;
 
-      yield Ok(Event::default().data(text));
+      yield text;
+    }
+  }
+}
+
+fn args<const N: usize>(args: [(&'static str, String); N]) -> BTreeMap<String, Value> {
+  args
+    .into_iter()
+    .map(|(k, v)| (k.to_string(), Value::String(v)))
+    .collect()
+}
+
+#[tracing::instrument("create chat", skip(state))]
+#[axum::debug_handler]
+pub async fn create_chat(
+  State(state): State<AppState>,
+  Json(payload): Json<CreateChatRequest>,
+) -> Result<Sse<impl Stream<Item = Result<Event, CreateChatError>>>, CreateChatError> {
+  info!("creating chat with payload: {:?}", payload);
+
+  let mut convex = state.convex.clone();
+
+  let response_message = match convex
+    .query("message:get_by_id", args([("id", payload.response_message_id)]))
+    .await
+  {
+    Ok(response_message) => response_message,
+    Err(err) => {
+      return Err(CreateChatError::UnexpectedError(err));
     }
   };
 
-  Sse::new(stream)
+  let stream = stream_data();
+
+  let stream = async_stream::stream! {
+    for await text in stream {
+      let args = BTreeMap::from([(String::from("text"), Value::String(text.clone()))]);
+
+      convex.mutation("append_text", args).await?;
+
+      yield Ok(Event::default().data(text).event("message"))
+    }
+
+    yield Ok(Event::default().event("end"));
+  };
+
+  Ok(Sse::new(stream))
 }

@@ -34,6 +34,8 @@ function navigateToAccount() {
 
 const { data, error } = useQuery(api.threads.getThreads);
 
+type Thread = NonNullable<typeof data.value>['threads'][number];
+
 // group threads by day
 const threads = computed(() => {
   if (!data.value) return [];
@@ -43,15 +45,24 @@ const threads = computed(() => {
     return [];
   }
 
-  const groupedThreads: Record<string, (typeof data.value.threads)[number][]> = {};
+  const groupedThreads = new Map<
+    string,
+    {
+      date: string;
+      threads: Thread[];
+    }
+  >();
 
   data.value.threads.forEach((thread) => {
-    const date = new Date(thread.createdAt).toISOString();
-    if (!groupedThreads[date]) groupedThreads[date] = [];
-    groupedThreads[date].push(thread);
+    // skip empty titles to skip uninitialized threads
+    if (thread.title.trim() === '') return;
+    const date = new Date(thread.createdAt).toISOString().split('T')[0];
+    const existing = groupedThreads.get(date) ?? { date, threads: [] };
+    existing.threads.push(thread);
+    groupedThreads.set(date, existing);
   });
 
-  return Object.entries(groupedThreads).map(([date, threads]) => ({
+  return Array.from(groupedThreads).map(([_, { date, threads }]) => ({
     date: moment(date).calendar(null, {
       lastDay: '[Yesterday]',
       sameDay: '[Today]',

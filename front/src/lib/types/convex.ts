@@ -22,12 +22,9 @@ export type Google = {
 type BaseMessage = {
   _creationTime: number;
   _id: Id<'messages'>;
-  attachmentIds: unknown[];
+  attachmentIds: string[];
   attachments: unknown[];
-  created_at: number;
-  messageId: string;
   parts: Part[];
-  status: string;
   threadId: string;
   updated_at: number;
   userId: string;
@@ -39,6 +36,7 @@ export type UserMessage = BaseMessage & {
 
 export type AssistantMessage = BaseMessage & {
   role: 'assistant';
+  status: 'pending' | 'complete';
   model: string;
   modelParams: ModelParams;
   providerMetadata: ProviderMetadata;

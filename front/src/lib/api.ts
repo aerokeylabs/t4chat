@@ -1,3 +1,5 @@
+import { SSE } from 'sse.js';
+
 export function getApiUrl(path: string): string {
   const baseUrl = import.meta.env.VITE_API_URL;
 
@@ -43,4 +45,15 @@ export async function apiGet<T>(path: string): Promise<T> {
   }
 
   return (await res.json()) as T;
+}
+
+export function apiPostSse<TReq>(path: string, body: TReq): SSE {
+  const url = getApiUrl(path);
+  return new SSE(url, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    payload: JSON.stringify(body),
+    method: 'POST',
+  });
 }

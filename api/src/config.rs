@@ -3,11 +3,22 @@ use std::env;
 use anyhow::{Context, bail};
 use secrecy::SecretString;
 
+fn get_var(key: &'static str) -> anyhow::Result<String> {
+  let var = env::var(key).with_context(|| format!("{} must be set in the environment", key))?;
+
+  if var.is_empty() {
+    bail!("{} must not be empty", key);
+  }
+
+  Ok(var)
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
   pub application: ApplicationConfig,
   pub snowflake: SnowflakeConfig,
   pub openrouter: OpenrouterConfig,
+  pub convex: ConvexConfig,
 }
 
 impl Config {
@@ -15,11 +26,13 @@ impl Config {
     let application = ApplicationConfig::from_env()?;
     let snowflake = SnowflakeConfig::from_env()?;
     let openrouter = OpenrouterConfig::from_env()?;
+    let convex = ConvexConfig::from_env()?;
 
     Ok(Self {
       application,
       snowflake,
       openrouter,
+      convex,
     })
   }
 }
@@ -79,16 +92,26 @@ impl OpenrouterConfig {
   fn from_env() -> anyhow::Result<Self> {
     let api_key = get_var(Self::API_KEY)?;
 
-    if api_key.is_empty() {
-      bail!("{} must not be empty", Self::API_KEY);
-    }
-
     let api_key = SecretString::from(api_key);
 
     Ok(Self { api_key })
   }
 }
 
-fn get_var(key: &'static str) -> anyhow::Result<String> {
-  env::var(key).with_context(|| format!("{} must be set in the environment", key))
+#[derive(Debug, Clone)]
+pub struct ConvexConfig {
+  pub url: String,
+  pub deployment_url: String,
+}
+
+impl ConvexConfig {
+  const DEPLOYMENT_KEY: &'static str = "CONVEX_DEPLOYMENT";
+  const URL_KEY: &'static str = "CONVEX_URL";
+
+  fn from_env() -> anyhow::Result<Self> {
+    let url = get_var(Self::URL_KEY)?;
+    let deployment = get_var(Self::DEPLOYMENT_KEY)?;
+
+    Ok(Self { url, deployment_url: deployment })
+  }
 }

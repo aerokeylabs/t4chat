@@ -5,7 +5,7 @@ use axum::response::Sse;
 use axum::response::sse::Event;
 use convex::ConvexClient;
 use futures::{Stream, StreamExt, pin_mut};
-use tokio::sync::mpsc::{self, Sender};
+use tokio::sync::mpsc::{self, Receiver, Sender};
 
 use crate::convex::messages::{CompleteMessageArgs, Message, MessageStatus, ModelParams};
 use crate::convex::threads::Thread;
@@ -91,12 +91,14 @@ fn stream_data() -> impl Stream<Item = String> {
 
 async fn stream_chat(
   mut client: ConvexClient,
-  tx: Sender<String>,
+  text_tx: Sender<String>,
+  mut kill_rx: Receiver<()>,
   message: Message,
   thread: Thread,
   complete_args: CompleteMessageArgs,
   set_title: bool,
 ) -> anyhow::Result<()> {
+  // todo: actually generate message using openai client in state.openrouter
   let stream = stream_data();
 
   pin_mut!(stream);
@@ -104,7 +106,14 @@ async fn stream_chat(
   let mut accumulator = String::new();
 
   while let Some(text) = stream.next().await {
-    let _ = tx.send(text.clone()).await;
+    if kill_rx.try_recv().is_ok() {
+      info!("streaming killed, exiting");
+      // todo: clean up and send message to client and do appropriate mutation to
+      // message in convex to mark cancelled
+      return Ok(());
+    }
+
+    let _ = text_tx.send(text.clone()).await;
     accumulator.push_str(&text);
 
     if accumulator.len() >= 100 {
@@ -171,18 +180,21 @@ pub async fn create_message(
     }),
   };
 
-  let (tx, mut rx) = mpsc::channel(128);
+  let (text_tx, mut text_rx) = mpsc::channel(128);
+  let (kill_tx, kill_rx) = mpsc::channel(1);
+
+  state.active_threads.lock().await.insert(thread.id.clone(), kill_tx);
 
   let set_title = thread.title.is_none();
 
   tokio::spawn(async move {
-    if let Err(err) = stream_chat(convex, tx, message, thread, complete_args, set_title).await {
+    if let Err(err) = stream_chat(convex, text_tx, kill_rx, message, thread, complete_args, set_title).await {
       error!("failed to stream chat: {:?}", err);
     }
   });
 
   let stream = async_stream::stream! {
-    while let Some(text) = rx.recv().await {
+    while let Some(text) = text_rx.recv().await {
       yield Ok(Event::default().data(text).event("message"))
     }
 

@@ -6,17 +6,18 @@ use snowflake::SnowflakeGenerator;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 
-use crate::config::{Config, EPOCH_MS};
+use crate::config::{Config, EPOCH_MS, OpenrouterConfig};
 use crate::prelude::*;
 use crate::routes::{RouteInfo, Router, print_routes, router};
 
-fn create_openrouter_client(config: &Config) -> OpenAIClient {
+fn create_openrouter_client(config: &OpenrouterConfig) -> OpenAIClient {
   // unwrap because build function just cant fail yet returns
   // result<client, box<dyn Error>> for some reason
 
   OpenAIClient::builder()
-    .with_endpoint(config.openrouter.api_url.clone())
-    .with_api_key(config.openrouter.api_key.expose_secret())
+    .with_endpoint(config.api_url.clone())
+    .with_api_key(config.api_key.expose_secret())
+    .with_header("api-key", config.api_key.expose_secret())
     .build()
     .unwrap()
 }
@@ -36,7 +37,7 @@ pub struct Application {
 
 impl Application {
   pub async fn build(config: Config) -> anyhow::Result<Self> {
-    let openrouter = create_openrouter_client(&config);
+    let openrouter = create_openrouter_client(&config.openrouter);
     let convex = create_convex_client(&config).await?;
 
     let snowflakes = SnowflakeGenerator::new(config.snowflake.worker, config.snowflake.process, EPOCH_MS);
@@ -49,7 +50,7 @@ impl Application {
 
     let port = listener.local_addr()?.port();
 
-    let (state, router) = create_router(openrouter, convex, snowflakes);
+    let (state, router) = create_router(openrouter, config.openrouter, convex, snowflakes);
 
     Ok(Self {
       port,
@@ -91,10 +92,11 @@ async fn root() -> &'static str {
 
 fn create_router(
   openrouter: OpenAIClient,
+  openrouter_config: OpenrouterConfig,
   convex: ConvexClient,
   snowflakes: SnowflakeGenerator,
 ) -> (AppState, Router<AppState>) {
-  let state = AppState::new(openrouter, convex, snowflakes);
+  let state = AppState::new(openrouter, openrouter_config, convex, snowflakes);
 
   let router = router(state.clone()).get("/", root);
 

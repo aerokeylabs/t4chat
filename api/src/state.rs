@@ -6,9 +6,12 @@ use openai_api_rs::v1::api::OpenAIClient;
 use snowflake::SnowflakeGenerator;
 use tokio::sync::{Mutex, mpsc};
 
+use crate::config::OpenrouterConfig;
+
 #[derive(Clone)]
 pub struct AppState {
   pub openrouter: Arc<Mutex<OpenAIClient>>,
+  pub openrouter_config: OpenrouterConfig,
   pub convex: ConvexClient,
   pub snowflakes: Arc<Mutex<SnowflakeGenerator>>,
 
@@ -21,9 +24,10 @@ fn am<T>(value: T) -> Arc<Mutex<T>> {
 }
 
 impl AppState {
-  pub fn new(openrouter: OpenAIClient, convex: ConvexClient, snowflakes: SnowflakeGenerator) -> Self {
+  pub fn new(openrouter: OpenAIClient, openrouter_config: OpenrouterConfig, convex: ConvexClient, snowflakes: SnowflakeGenerator) -> Self {
     Self {
       openrouter: am(openrouter),
+      openrouter_config,
       convex,
       snowflakes: am(snowflakes),
 

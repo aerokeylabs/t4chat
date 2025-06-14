@@ -1,13 +1,15 @@
-use std::time::Duration;
-
-use anyhow::Context;
 use axum::response::Sse;
 use axum::response::sse::Event;
 use convex::ConvexClient;
 use futures::{Stream, StreamExt, pin_mut};
 use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::time::Duration;
 use serde_json::json;
+use secrecy::ExposeSecret;
+use openai_api_rs::v1::api::OpenAIClient;
+use openai_api_rs::v1::chat_completion::{ChatCompletionRequest, ChatCompletionMessage, MessageRole, Content};
 
+use crate::config::OpenrouterConfig;
 use crate::convex::messages::{CompleteMessageArgs, Message, MessageStatus, ModelParams};
 use crate::convex::threads::Thread;
 use crate::convex::{ConvexError, messages, threads};
@@ -92,106 +94,53 @@ fn stream_data() -> impl Stream<Item = String> {
 }
 
 async fn stream_openrouter_chat(
-  _openai_client: &openai_api_rs::v1::api::OpenAIClient,
+  openrouter: &OpenAIClient,
   user_message: String,
   model: String,
   _model_params: Option<ModelParams>,
 ) -> anyhow::Result<std::pin::Pin<Box<dyn Stream<Item = anyhow::Result<String>> + Send>>> {
-  // Extract API key and endpoint from the OpenAI client configuration
-  // Since we can't easily access the internal client config, we'll get it from env
-  let api_key = std::env::var("OPENROUTER_API_KEY")
-    .context("OPENROUTER_API_KEY must be set")?;
-  let endpoint = std::env::var("OPENROUTER_API_URL")
-    .unwrap_or_else(|_| "https://openrouter.ai/api/v1".to_string());
-
-  let client = reqwest::Client::new();
-  
-  let payload = json!({
-    "model": model,
-    "messages": [
-      {
-        "role": "user",
-        "content": user_message
-      }
-    ],
-    "stream": true,
-    "max_tokens": 4096,
-    "temperature": 0.7
-  });
-
-  let response = client
-    .post(format!("{}/chat/completions", endpoint))
-    .header("Authorization", format!("Bearer {}", api_key))
-    .header("Content-Type", "application/json")
-    .json(&payload)
-    .send()
-    .await
-    .context("Failed to send request to OpenRouter")?;
-
-  if !response.status().is_success() {
-    let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-    return Err(anyhow::anyhow!("OpenRouter API error: {}", error_text));
-  }
+  let request = ChatCompletionRequest::new(
+    model.clone(),
+    vec![ChatCompletionMessage {
+      role: MessageRole::User,
+      content: Content::Text(user_message),
+      name: None,
+      tool_calls: None,
+      tool_call_id: None,
+    }],
+  )
+  .stream(true)
+  .max_tokens(4096)
+  .temperature(0.7);
 
   let stream = async_stream::stream! {
-    let mut stream = response.bytes_stream();
-    let mut buffer = String::new();
-    
-    while let Some(chunk_result) = stream.next().await {
-      match chunk_result {
-        Ok(chunk) => {
-          let chunk_str = String::from_utf8_lossy(&chunk);
-          buffer.push_str(&chunk_str);
-          
-          // Process complete lines
-          let lines: Vec<&str> = buffer.lines().collect();
-          let mut processed_lines = 0;
-          
-          for line in &lines {
-            if line.starts_with("data: ") {
-              let data_line = &line[6..]; // Remove "data: " prefix
-              
-              if data_line == "[DONE]" {
-                return;
-              }
-              
-              if !data_line.trim().is_empty() {
-                match serde_json::from_str::<serde_json::Value>(data_line) {
-                  Ok(json) => {
-                    if let Some(choices) = json["choices"].as_array() {
-                      if let Some(choice) = choices.first() {
-                        if let Some(delta) = choice["delta"].as_object() {
-                          if let Some(content) = delta["content"].as_str() {
-                            if !content.is_empty() {
-                              yield Ok(content.to_string());
-                            }
-                          }
-                        }
-                      }
+    match openrouter.chat_completion_stream(request).await {
+      Ok(mut stream) => {
+        while let Some(response) = stream.next().await {
+          match response {
+            Ok(chat_response) => {
+              if let Some(choices) = chat_response.choices.first() {
+                if let Some(delta) = &choices.delta {
+                  if let Some(content) = &delta.content {
+                    if !content.is_empty() {
+                      yield Ok(content.clone());
                     }
-                  }
-                  Err(e) => {
-                    error!("Failed to parse SSE JSON: {:?}, data: {}", e, data_line);
                   }
                 }
               }
-              processed_lines += 1;
-            } else if !line.trim().is_empty() {
-              processed_lines += 1;
+            }
+            Err(e) => {
+              error!("OpenRouter stream error: {:?}", e);
+              yield Err(anyhow::anyhow!("OpenRouter stream error: {}", e));
+              return;
             }
           }
-          
-          // Keep unprocessed data in buffer
-          if processed_lines < lines.len() {
-            buffer = lines[processed_lines..].join("\n");
-          } else {
-            buffer.clear();
-          }
         }
-        Err(e) => {
-          yield Err(anyhow::anyhow!("Stream chunk error: {}", e));
-          return;
-        }
+      }
+      Err(e) => {
+        error!("Failed to create OpenRouter stream: {:?}", e);
+        yield Err(anyhow::anyhow!("Failed to create OpenRouter stream: {}", e));
+        return;
       }
     }
   };
@@ -200,7 +149,7 @@ async fn stream_openrouter_chat(
 }
 
 async fn stream_chat(
-  openrouter_client: std::sync::Arc<tokio::sync::Mutex<openai_api_rs::v1::api::OpenAIClient>>,
+  openrouter: std::sync::Arc<tokio::sync::Mutex<OpenAIClient>>,
   mut convex_client: ConvexClient,
   text_tx: Sender<String>,
   mut kill_rx: Receiver<()>,
@@ -211,7 +160,7 @@ async fn stream_chat(
   user_message: String,
 ) -> anyhow::Result<()> {
   // Get the OpenRouter client
-  let client = openrouter_client.lock().await;
+  let client = openrouter.lock().await;
   
   // Create the OpenRouter stream
   let stream = match stream_openrouter_chat(
@@ -223,10 +172,8 @@ async fn stream_chat(
     Ok(stream) => stream,
     Err(e) => {
       error!("Failed to create OpenRouter stream: {:?}", e);
-      // Fallback to mock data for development
-      warn!("Falling back to mock data stream");
-      let mock_stream = Box::pin(stream_data().map(|text| Ok(text)));
-      mock_stream
+      // Fallback to mock data for debugging
+      return Err(e);
     }
   };
 
@@ -357,14 +304,14 @@ pub async fn create_message(
     .collect::<Vec<_>>()
     .join(" ");
 
-  let openrouter_client = state.openrouter.clone();
+  let openrouter = state.openrouter.clone();
   let convex_client = state.convex.clone();
   let active_threads = state.active_threads.clone();
   let thread_id_for_cleanup = thread.id.clone();
 
   tokio::spawn(async move {
     let result = stream_chat(
-      openrouter_client,
+      openrouter,
       convex_client,
       text_tx,
       kill_rx,

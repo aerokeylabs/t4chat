@@ -46,7 +46,7 @@ macro_rules! error_chain_fmt {
 /// This macro generates an `IntoResponse` implementation for an error type.
 ///
 /// Usage:
-/// ```no_run
+/// ```ignore
 /// into_response!(GetUserError {
 ///   NotFound => StatusCode::NOT_FOUND,
 ///   ValidationError(_) => StatusCode::BAD_REQUEST,

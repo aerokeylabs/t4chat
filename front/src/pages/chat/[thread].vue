@@ -12,16 +12,16 @@ import { useRoute } from 'vue-router';
 const route = useRoute();
 const args = computed(() => ({ threadId: route.params.thread as string }));
 
-const { data: dawa, error } = useReactiveQuery(api.messages.getMessagesByThread, args);
+const { data, error } = useReactiveQuery(api.messages.getByThreadId, args);
 
 const messages = computed(() => {
-  if (!dawa.value) return [];
-  return dawa.value.messages as Message[];
+  if (!data.value) return [];
+  return data.value.messages as Message[];
 });
 
 const { message: streamingMessage, completed } = useStreamingMessage();
 
-// show streaming message if it is not completed and if the last message in messages is no longer pending
+// show streaming message if it is not completed or if the last message is still pending
 const showStreamingMessage = computed(() => {
   const lastMessage = messages.value.length === 0 ? null : messages.value[messages.value.length - 1];
   if (!completed) return true;

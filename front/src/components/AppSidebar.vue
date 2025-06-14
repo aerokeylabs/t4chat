@@ -55,7 +55,7 @@ const threads = computed(() => {
 
   data.value.threads.forEach((thread) => {
     // skip empty titles to skip uninitialized threads
-    if (thread.title.trim() === '') return;
+    if (thread.title == null) return;
     const date = new Date(thread.createdAt).toISOString().split('T')[0];
     const existing = groupedThreads.get(date) ?? { date, threads: [] };
     existing.threads.push(thread);

@@ -22,7 +22,7 @@ fn create_openrouter_client(config: &Config) -> OpenAIClient {
 }
 
 async fn create_convex_client(config: &Config) -> anyhow::Result<ConvexClient> {
-  ConvexClient::new(&config.convex.deployment_url)
+  ConvexClient::new(&config.convex.url)
     .await
     .context("failed to create Convex client")
 }

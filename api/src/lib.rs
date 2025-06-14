@@ -2,6 +2,8 @@ use serde::Serialize;
 use specta::Type;
 
 pub mod config;
+pub mod convex;
+pub mod convex_serde;
 pub mod error;
 pub mod logger;
 pub mod routes;

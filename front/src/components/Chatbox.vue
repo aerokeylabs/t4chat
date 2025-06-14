@@ -25,6 +25,9 @@ const FEATURED_MODELS = FEATURED_MODEL_IDS.map((modelId) => MODELS.get(modelId)!
 
 const model = ref(FEATURED_MODELS[0].id);
 
+const props = defineProps<{
+  disabled?: boolean;
+}>();
 const emit = defineEmits<{
   (e: 'send', message: string): void;
 }>();
@@ -38,7 +41,7 @@ const messageValid = computed(() => {
 });
 
 function send() {
-  if (message.value.trim() === '') return;
+  if (message.value.trim() === '' || props.disabled) return;
 
   emit('send', message.value);
 
@@ -121,7 +124,7 @@ function selectModel(id: ModelId) {
         </Button>
       </div>
 
-      <Button size="icon" variant="ghost" :disabled="!messageValid" @click="send">
+      <Button size="icon" variant="ghost" :disabled="disabled || !messageValid" @click="send">
         <Send class="size-5" />
       </Button>
     </div>

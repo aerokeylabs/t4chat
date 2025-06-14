@@ -22,13 +22,13 @@ pub struct Router<S> {
   pub routes: Vec<RouteInfo>,
 }
 
-/// ```no_run
+/// ```ignore
 /// method!(get, Method::GET);
 /// ```
 ///
 /// Becomes:
 ///
-/// ```no_run
+/// ```ignore
 /// fn get<T, H, L>(path: &str, handler: H) -> Router<S>
 /// where
 ///   T: 'static,

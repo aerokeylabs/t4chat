@@ -101,7 +101,7 @@ impl OpenrouterConfig {
 #[derive(Debug, Clone)]
 pub struct ConvexConfig {
   pub url: String,
-  pub deployment_url: String,
+  pub id: String,
 }
 
 impl ConvexConfig {
@@ -110,8 +110,8 @@ impl ConvexConfig {
 
   fn from_env() -> anyhow::Result<Self> {
     let url = get_var(Self::URL_KEY)?;
-    let deployment = get_var(Self::DEPLOYMENT_KEY)?;
+    let id = get_var(Self::DEPLOYMENT_KEY)?;
 
-    Ok(Self { url, deployment_url: deployment })
+    Ok(Self { url, id })
   }
 }

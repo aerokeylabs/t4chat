@@ -55,7 +55,7 @@ export default defineSchema({
     lastMessageAt: v.float64(),
     model: v.string(),
     pinned: v.boolean(),
-    title: v.string(),
+    title: v.optional(v.string()),
     updatedAt: v.float64(),
     userId: v.string(),
     userSetTitle: v.boolean(),

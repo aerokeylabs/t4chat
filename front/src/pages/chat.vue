@@ -6,8 +6,10 @@ import { useChatbox } from '@/composables/chatbox';
 import { useMutation } from '@/composables/convex';
 import { useStreamingMessage } from '@/composables/streamingMessage';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import { apiPostSse } from '@/lib/api';
-import { Routes, type CreateChatRequest } from '@/lib/types';
+import { Routes, type CreateMessageRequest } from '@/lib/types';
+import type { SSE } from 'sse.js';
 import { computed, ref } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 
@@ -16,49 +18,78 @@ const router = useRouter();
 const threadId = computed(() => route.params.thread as string);
 const isInThread = computed(() => threadId.value != null);
 
-const createThreadMutation = useMutation(api.threads.createThread);
+const createThreadMutation = useMutation(api.threads.create);
+const createMessageMutation = useMutation(api.threads.createMessage);
 
 const { message: streamingMessage, completed } = useStreamingMessage();
 
 const { hide } = useChatbox();
 
 async function onSend(message: string) {
+  const model = 'openai/gpt-4o-mini';
+  const modelParams = { includeSearch: false, reasoningEffort: 'medium' };
+
+  let source: SSE;
+
   if (isInThread.value) {
     console.info('send message to thread', threadId.value, 'with content', message);
+    const result = await createMessageMutation({
+      threadId: threadId.value as Id<'threads'>,
+      messageParts: [{ type: 'text', text: message }],
+      model,
+      modelParams,
+    });
+
+    if (result == null) {
+      console.error('Failed to create message in thread', threadId.value);
+      return;
+    }
+
+    console.debug('created message', result.assistantMessageId, 'in thread', threadId.value);
+
+    source = apiPostSse<CreateMessageRequest>(Routes.message(), {
+      threadId: threadId.value,
+      responseMessageId: result.assistantMessageId,
+      messageParts: [{ type: 'text', text: message }],
+      model,
+      modelParams,
+    });
+  } else {
+    console.debug('create new thread with content', message);
+
+    const thread = await createThreadMutation({ model, modelParams, message });
+
+    console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
+
+    router.push(`/chat/${thread.threadId}`);
+
+    source = apiPostSse<CreateMessageRequest>(Routes.message(), {
+      threadId: thread.threadId,
+      responseMessageId: thread.assistantMessageId,
+      messageParts: [{ type: 'text', text: message }],
+      model,
+      modelParams,
+    });
   }
 
-  console.debug('create new thread with content', message);
+  try {
+    streamingMessage.value = '';
+    completed.value = false;
+    hide.value = false;
 
-  const thread = await createThreadMutation({
-    model: 'openai/gpt-4o-mini',
-    modelParams: { includeSearch: false, reasoningEffort: 'medium' },
-    message,
-  });
+    source.addEventListener('message', (event: { data: string }) => {
+      streamingMessage.value += event.data;
+      hide.value = true;
+    });
 
-  console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
-
-  router.push(`/chat/${thread.threadId}`);
-
-  const source = apiPostSse<CreateChatRequest>(Routes.chat(), {
-    threadId: thread.threadId,
-    responseMessageId: thread.assistantMessageId,
-    messageParts: [{ type: 'text', text: message }],
-    model: 'openai/gpt-4o-mini',
-    modelParams: { includeSearch: false, reasoningEffort: 'medium' },
-  });
-
-  streamingMessage.value = '';
-  completed.value = false;
-  hide.value = false;
-
-  source.addEventListener('message', (event: { data: string }) => {
-    streamingMessage.value += event.data;
-    hide.value = true;
-  });
-
-  source.addEventListener('end', () => {
+    source.addEventListener('end', () => {
+      completed.value = true;
+    });
+  } catch (error) {
+    console.error('Error sending message:', error);
     completed.value = true;
-  });
+    streamingMessage.value = '';
+  }
 }
 
 const chatboxHeight = ref(300);
@@ -74,7 +105,7 @@ const chatboxHeight = ref(300);
       </div>
 
       <div ref="chatbox-container" class="chatbox-container">
-        <Chatbox @send="onSend" />
+        <Chatbox @send="onSend" :disabled="!completed" />
       </div>
     </main>
   </SidebarProvider>

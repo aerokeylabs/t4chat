@@ -7,7 +7,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="text-primary-foreground mb-12">
+  <div class="text-primary-foreground mb-12 bg-pink-800">
     <Prose :source="message" />
   </div>
 </template>

@@ -11,6 +11,7 @@ use crate::convex_serde::to_map;
 pub enum MessageStatus {
   Pending,
   Complete,
+  Cancelled,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,7 +52,7 @@ pub async fn get_by_thread_id(client: &mut ConvexClient, thread_id: String) -> R
   .await
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelParams {
   pub reasoning_effort: String,
@@ -83,6 +84,18 @@ pub async fn append_text(client: &mut ConvexClient, message_id: String, text: St
   ]);
 
   let result = convex_mutation::<Option<MessageIdOnly>>(client, APPEND_TEXT, args).await?;
+
+  Ok(result.is_some())
+}
+
+pub async fn cancel(client: &mut ConvexClient, message_id: String) -> Result<bool> {
+  const CANCEL_MESSAGE: &str = "messages:cancel";
+
+  let args = BTreeMap::from([
+    ("messageId".to_string(), Value::String(message_id)),
+  ]);
+
+  let result = convex_mutation::<Option<MessageIdOnly>>(client, CANCEL_MESSAGE, args).await?;
 
   Ok(result.is_some())
 }

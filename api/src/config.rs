@@ -83,18 +83,19 @@ impl SnowflakeConfig {
 
 #[derive(Debug, Clone)]
 pub struct OpenrouterConfig {
+  pub api_url: String,
   pub api_key: SecretString,
 }
 
 impl OpenrouterConfig {
-  const API_KEY: &'static str = "OPENROUTER_API_KEY";
+  const API_KEY_KEY: &'static str = "OPENROUTER_API_KEY";
+  const API_URL_KEY: &'static str = "OPENROUTER_API_URL";
 
   fn from_env() -> anyhow::Result<Self> {
-    let api_key = get_var(Self::API_KEY)?;
+    let api_key = SecretString::from(get_var(Self::API_KEY_KEY)?);
+    let api_url = get_var(Self::API_URL_KEY)?;
 
-    let api_key = SecretString::from(api_key);
-
-    Ok(Self { api_key })
+    Ok(Self { api_key, api_url })
   }
 }
 

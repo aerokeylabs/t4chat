@@ -15,7 +15,7 @@ fn create_openrouter_client(config: &Config) -> OpenAIClient {
   // result<client, box<dyn Error>> for some reason
 
   OpenAIClient::builder()
-    .with_endpoint("https://openrouter.ai/api/v1")
+    .with_endpoint(config.openrouter.api_url.clone())
     .with_api_key(config.openrouter.api_key.expose_secret())
     .build()
     .unwrap()

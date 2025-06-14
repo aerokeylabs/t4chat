@@ -1,1 +1,74 @@
 // todo: cancel generating message by sending kill signal if thread exists in state.active_threads
+
+use axum::extract::State;
+use axum::Json;
+
+use crate::prelude::*;
+use crate::{convex_serde, into_response};
+
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelMessageRequest {
+  pub thread_id: String,
+}
+
+#[derive(Debug, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CancelMessageResponse {
+  pub success: bool,
+  pub message: String,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CancelMessageError {
+  #[error("thread not found or not active")]
+  ThreadNotFound,
+  #[error("failed to send cancel signal")]
+  FailedToCancel,
+  #[error("unexpected error: {0}")]
+  Unexpected(#[from] anyhow::Error),
+  #[error("serialization error: {0}")]
+  Serialization(#[from] convex_serde::SerError),
+}
+
+into_response!(
+  CancelMessageError {
+    ThreadNotFound => StatusCode::NOT_FOUND,
+    FailedToCancel => StatusCode::INTERNAL_SERVER_ERROR,
+    Unexpected(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    Serialization(_) => StatusCode::INTERNAL_SERVER_ERROR,
+  }
+);
+
+/// Cancel a generating message by sending kill signal if thread exists in state.active_threads
+#[tracing::instrument(name = "cancel_message", skip(state))]
+pub async fn cancel_message(
+  State(state): State<AppState>,
+  Json(payload): Json<CancelMessageRequest>,
+) -> Result<Json<CancelMessageResponse>, CancelMessageError> {
+  info!("Attempting to cancel message for thread_id: {}", payload.thread_id);
+
+  // Get the active threads map
+  let mut active_threads = state.active_threads.lock().await;
+  
+  // Check if the thread exists in active_threads
+  if let Some(kill_tx) = active_threads.remove(&payload.thread_id) {
+    // Send the kill signal
+    match kill_tx.send(()).await {
+      Ok(_) => {
+        info!("Successfully sent cancel signal for thread_id: {}", payload.thread_id);
+        Ok(Json(CancelMessageResponse {
+          success: true,
+          message: format!("Successfully cancelled message for thread {}", payload.thread_id),
+        }))
+      }
+      Err(e) => {
+        error!("Failed to send cancel signal for thread_id {}: {:?}", payload.thread_id, e);
+        Err(CancelMessageError::FailedToCancel)
+      }
+    }
+  } else {
+    warn!("Thread {} not found in active threads or already completed", payload.thread_id);
+    Err(CancelMessageError::ThreadNotFound)
+  }
+}

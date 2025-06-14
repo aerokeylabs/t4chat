@@ -7,5 +7,10 @@ mod message;
 
 #[tracing::instrument(name = "creating main router", skip(_state))]
 pub fn router(_state: AppState) -> Router<AppState> {
-  Router::new().nest("/message", Router::new().post("/", message::create::create_message))
+  Router::new().nest(
+    "/message", 
+    Router::new()
+      .post("/", message::create::create_message)
+      .post("/cancel", message::cancel::cancel_message)
+  )
 }

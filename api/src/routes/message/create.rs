@@ -359,9 +359,11 @@ pub async fn create_message(
 
   let openrouter_client = state.openrouter.clone();
   let convex_client = state.convex.clone();
+  let active_threads = state.active_threads.clone();
+  let thread_id_for_cleanup = thread.id.clone();
 
   tokio::spawn(async move {
-    if let Err(err) = stream_chat(
+    let result = stream_chat(
       openrouter_client,
       convex_client,
       text_tx,
@@ -371,7 +373,12 @@ pub async fn create_message(
       complete_args,
       set_title,
       user_message,
-    ).await {
+    ).await;
+
+    // Always cleanup the active thread when streaming completes
+    active_threads.lock().await.remove(&thread_id_for_cleanup);
+    
+    if let Err(err) = result {
       error!("failed to stream chat: {:?}", err);
     }
   });

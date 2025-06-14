@@ -8,6 +8,15 @@ export type CreateMessageRequest = {
   modelParams: ModelParamsRequest | null;
 };
 
+export type CancelMessageRequest = {
+  threadId: string;
+};
+
+export type CancelMessageResponse = {
+  success: boolean;
+  message: string;
+};
+
 export type MessagePart = { type: 'text'; text: string };
 
 export type ModelParamsRequest = { reasoningEffort: string; includeSearch: boolean };
@@ -37,6 +46,11 @@ export const Routes = {
    * - POST `message`
    */
   message: () => 'message' as const,
+  /**
+   * Route for:
+   * - POST `cancel`
+   */
+  cancel: () => 'cancel' as const,
 };
 
 Object.freeze(Routes);

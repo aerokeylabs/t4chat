@@ -21,15 +21,23 @@ const isInThread = computed(() => threadId.value != null);
 const createThreadMutation = useMutation(api.threads.create);
 const createMessageMutation = useMutation(api.threads.createMessage);
 
-const { message: streamingMessage, completed } = useStreamingMessage();
+const {
+  message: streamingMessage,
+  startStreaming,
+  completeStreaming,
+} = useStreamingMessage();
 
 const { hide } = useChatbox();
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+let currentSseSource: SSE | null = null;
 
 async function onSend(message: string) {
   const model = 'openai/gpt-4o-mini';
   const modelParams = { includeSearch: false, reasoningEffort: 'medium' };
 
   let source: SSE;
+  let activeThreadId: string;
 
   if (isInThread.value) {
     console.info('send message to thread', threadId.value, 'with content', message);
@@ -54,6 +62,8 @@ async function onSend(message: string) {
       model,
       modelParams,
     });
+    
+    activeThreadId = threadId.value;
   } else {
     console.debug('create new thread with content', message);
 
@@ -70,12 +80,14 @@ async function onSend(message: string) {
       model,
       modelParams,
     });
+    
+    activeThreadId = thread.threadId;
   }
 
   try {
-    streamingMessage.value = '';
-    completed.value = false;
+    startStreaming(activeThreadId);
     hide.value = false;
+    currentSseSource = source;
 
     source.addEventListener('message', (event: { data: string }) => {
       streamingMessage.value += event.data;
@@ -83,12 +95,21 @@ async function onSend(message: string) {
     });
 
     source.addEventListener('end', () => {
-      completed.value = true;
+      completeStreaming();
+      currentSseSource = null;
     });
+
+    source.addEventListener('error', (error: any) => {
+      console.error('SSE error:', error);
+      completeStreaming();
+      currentSseSource = null;
+    });
+
   } catch (error) {
     console.error('Error sending message:', error);
-    completed.value = true;
+    completeStreaming();
     streamingMessage.value = '';
+    currentSseSource = null;
   }
 }
 
@@ -105,7 +126,7 @@ const chatboxHeight = ref(300);
       </div>
 
       <div ref="chatbox-container" class="chatbox-container">
-        <Chatbox @send="onSend" :disabled="!completed" />
+        <Chatbox @send="onSend" />
       </div>
     </main>
   </SidebarProvider>

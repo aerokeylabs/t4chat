@@ -57,3 +57,7 @@ export function apiPostSse<TReq>(path: string, body: TReq): SSE {
     method: 'POST',
   });
 }
+
+export async function cancelMessage(threadId: string): Promise<{ success: boolean; message: string }> {
+  return apiPost('message/cancel', { threadId });
+}

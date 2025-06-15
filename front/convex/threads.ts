@@ -11,6 +11,10 @@ export const getById = query({
 
 export const getThreads = query({
   handler: async (ctx) => {
+    const userId = (await ctx.auth.getUserIdentity())?.tokenIdentifier ?? 'null';
+
+    console.info('getThreads called for userId:', userId);
+
     const threads = await ctx.db.query('threads').order('desc').take(100);
     return { threads };
   },

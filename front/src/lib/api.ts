@@ -1,4 +1,4 @@
-import { useApiKeys } from '@/composables/keys';
+import { useSettings } from '@/composables/settings';
 import { SSE, type SSEHeaders } from 'sse.js';
 import type { CancelMessageRequest, CancelMessageResponse } from './types';
 
@@ -50,12 +50,12 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 export function apiPostSse<TReq>(path: string, body: TReq): SSE {
-  const apiKeys = useApiKeys();
+  const settings = useSettings();
   const headers: SSEHeaders = {
     'Content-Type': 'application/json',
   };
 
-  let openrouter = apiKeys.openrouter.value.trim();
+  let openrouter = settings.keys.openrouter.trim();
   if (openrouter !== '') {
     headers['X-OpenRouter-Key'] = openrouter;
   }

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useApiKeys } from '@/composables/keys';
+import { useSettings } from '@/composables/settings';
 
-const { openrouter } = useApiKeys();
+const { keys } = useSettings();
 </script>
 
 <template>
@@ -12,6 +12,8 @@ const { openrouter } = useApiKeys();
 
   <Label class="text-secondary-foreground mt-4 flex flex-col items-start gap-4">
     <span>OpenRouter Key</span>
-    <Input v-model="openrouter" placeholder="sk-..." class="font-mono" />
+    <Input v-model="keys.openrouter" placeholder="sk-..." maxlength="64" class="font-mono" />
   </Label>
+
+  <pre>{{ keys }}</pre>
 </template>

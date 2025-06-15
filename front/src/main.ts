@@ -2,12 +2,13 @@ import '@/assets/css/index.css';
 import '@/assets/css/md.css';
 import 'vue-sonner/style.css';
 
+import { convex } from '@/plugins/convex';
 import { dark } from '@clerk/themes';
 import { clerkPlugin } from '@clerk/vue';
+import { createPinia } from 'pinia';
 import { createApp } from 'vue';
 
 import App from '@/App.vue';
-import { initConvex } from '@/composables/convex';
 import { getMarkdownProcessor } from '@/lib/shiki';
 import { router } from '@/router';
 
@@ -23,6 +24,8 @@ if (!CONVEX_URL) {
 
 createApp(App)
   .use(router)
+  .use(convex, { convexUrl: CONVEX_URL })
+  .use(createPinia())
   .use(clerkPlugin, { publishableKey: CLERK_KEY, appearance: { baseTheme: dark } })
   .mount('#app');
 
@@ -31,5 +34,3 @@ console.time('init markdown processor');
 getMarkdownProcessor().then(() => {
   console.timeEnd('init markdown processor');
 });
-
-initConvex(CONVEX_URL);

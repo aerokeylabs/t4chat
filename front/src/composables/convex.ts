@@ -1,26 +1,17 @@
 import { ConvexClient } from 'convex/browser';
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server';
-import { ref, watch, type Ref } from 'vue';
+import { inject, ref, watch, type Ref } from 'vue';
 
-let convex: ConvexClient | null = null;
-
-export function initConvex(url: string) {
-  if (convex) {
-    console.warn('called initConvex while already initialized');
-    return;
-  }
-
-  try {
-    convex = new ConvexClient(url);
-  } catch (error) {
-    console.error('initConvex failed:', error);
-  }
+export function useConvex(): ConvexClient {
+  const client = inject<ConvexClient>('convexClient');
+  if (client == null) throw new Error('failed to inject convex');
+  return client;
 }
 
-export function useConvex() {
-  if (!convex) throw new Error('called useConvex before client initialized with initConvex');
-
-  return convex;
+export function useConvexAuthenticated() {
+  const isAuthenticated = inject<Ref<boolean>>('isConvexAuthenticated');
+  if (isAuthenticated == null) throw new Error('failed to inject convex');
+  return isAuthenticated;
 }
 
 type Query = FunctionReference<'query'>;

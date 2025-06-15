@@ -199,56 +199,63 @@ pub fn export_types(debug_location: bool, routes: Vec<RouteInfo>) -> Result<()> 
   // attempt to format by piping output into prettier
 
   // find yarn path
-  let yarn = find_yarn_path()?;
+  let output = if let Ok(yarn) = find_yarn_path() {
+    // set cwd to the directory of the types_path
 
-  // set cwd to the directory of the types_path
+    let cwd = types_path
+      .parent()
+      .context(anyhow::anyhow!(
+        "failed to get parent directory of types_path: {}",
+        display_path(&types_path)
+      ))?
+      .canonicalize()?;
 
-  let cwd = types_path
-    .parent()
-    .context(anyhow::anyhow!(
-      "failed to get parent directory of types_path: {}",
-      display_path(&types_path)
-    ))?
-    .canonicalize()?;
+    let cwd = cwd.to_string_lossy();
 
-  let cwd = cwd.to_string_lossy();
+    #[cfg(target_os = "windows")]
+    let cwd = display_path(&*cwd);
 
-  #[cfg(target_os = "windows")]
-  let cwd = display_path(&*cwd);
+    println!("output > yarn prettier");
 
-  println!("output > yarn prettier");
+    let mut child = Command::new(yarn)
+      .current_dir(cwd)
+      .stdout(Stdio::piped())
+      .stderr(Stdio::inherit())
+      .stdin(Stdio::piped())
+      .arg("prettier")
+      .arg("--parser")
+      .arg("typescript")
+      .spawn()?;
 
-  let mut child = Command::new(yarn)
-    .current_dir(cwd)
-    .stdout(Stdio::piped())
-    .stderr(Stdio::inherit())
-    .stdin(Stdio::piped())
-    .arg("prettier")
-    .arg("--parser")
-    .arg("typescript")
-    .spawn()?;
+    let stdout = child.stdout.take().context("failed to open stdout")?;
+    let mut reader = BufReader::new(stdout);
 
-  let stdout = child.stdout.take().context("failed to open stdout")?;
-  let mut reader = BufReader::new(stdout);
+    let stdin = child.stdin.take().context("failed to open stdin")?;
+    let mut writer = BufWriter::new(stdin);
+    writer
+      .write_all(output.as_bytes())
+      .context("failed to write to stdin")?;
+    writer.flush().context("failed to flush stdin")?;
+    drop(writer);
 
-  let stdin = child.stdin.take().context("failed to open stdin")?;
-  let mut writer = BufWriter::new(stdin);
-  writer
-    .write_all(output.as_bytes())
-    .context("failed to write to stdin")?;
-  writer.flush().context("failed to flush stdin")?;
-  drop(writer);
+    let status = child.wait()?;
 
-  let status = child.wait()?;
+    if !status.success() {
+      bail!("`output > yarn prettier` failed");
+    }
+    let mut formatted_output = String::new();
+    reader
+      .read_to_string(&mut formatted_output)
+      .context("failed to read from stdout")?;
 
-  if !status.success() {
-    bail!("`output > yarn prettier` failed");
-  }
-
-  let mut formatted_output = String::new();
-  reader
-    .read_to_string(&mut formatted_output)
-    .context("failed to read from stdout")?;
+    formatted_output
+  } else {
+    eprintln!(
+      "Warning: {} not found, skipping formatting with prettier",
+      "yarn".bright_yellow()
+    );
+    output
+  };
 
   // write to file
   let mut file = File::options()
@@ -256,9 +263,7 @@ pub fn export_types(debug_location: bool, routes: Vec<RouteInfo>) -> Result<()> 
     .create(true)
     .truncate(true)
     .open(&types_path)?;
-  file
-    .write_all(formatted_output.as_bytes())
-    .context("failed to write to file")?;
+  file.write_all(output.as_bytes()).context("failed to write to file")?;
   file.flush().context("failed to flush file")?;
   drop(file);
 
@@ -304,7 +309,7 @@ fn find_yarn_path() -> Result<String> {
 }
 
 #[cfg(not(windows))]
-fn yarn_path() -> Result<String> {
+fn find_yarn_path() -> Result<String> {
   let output = Command::new("which").arg("yarn").output()?;
 
   if !output.status.success() {

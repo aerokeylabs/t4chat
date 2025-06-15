@@ -12,13 +12,26 @@ export const convex: Plugin = {
       const isAuthenticated = ref(false);
       const client = new ConvexClient(convexUrl);
 
-      const { getToken, isSignedIn } = useAuth();
+      app.runWithContext(() => {
+        const { getToken, isSignedIn } = useAuth();
 
-      function onSignedIn(value?: boolean) {
-        if (!value) return;
+        function onAuthenticated(value?: boolean) {
+          isAuthenticated.value = value ?? false;
 
-        client.setAuth(
-          async ({ forceRefreshToken }) => {
+          if (value) {
+            console.info('convex client authenticated');
+          } else {
+            console.warn('convex client not authenticated');
+          }
+        }
+
+        function onSignedIn(value?: boolean) {
+          if (!value) {
+            client.setAuth(() => Promise.resolve(null), onAuthenticated);
+            return;
+          }
+
+          client.setAuth(async ({ forceRefreshToken }) => {
             try {
               return await getToken.value({
                 template: 'convex',
@@ -28,20 +41,11 @@ export const convex: Plugin = {
               console.error('error getting auth token:', err);
               return null;
             }
-          },
-          (authenticated) => {
-            isAuthenticated.value = authenticated;
+          }, onAuthenticated);
+        }
 
-            if (authenticated) {
-              console.info('convex client authenticated');
-            } else {
-              console.warn('convex client not authenticated');
-            }
-          },
-        );
-      }
-
-      watch(isSignedIn, (v) => onSignedIn(v), { immediate: true });
+        watch(isSignedIn, (v) => onSignedIn(v), { immediate: true });
+      });
 
       app.provide('convexClient', client);
       app.provide('isConvexAuthenticated', isAuthenticated);

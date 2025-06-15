@@ -24,9 +24,9 @@ if (!CONVEX_URL) {
 
 createApp(App)
   .use(router)
-  .use(convex, { convexUrl: CONVEX_URL })
   .use(createPinia())
   .use(clerkPlugin, { publishableKey: CLERK_KEY, appearance: { baseTheme: dark } })
+  .use(convex, { convexUrl: CONVEX_URL })
   .mount('#app');
 
 // load markdown processor early

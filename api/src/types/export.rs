@@ -210,7 +210,7 @@ pub fn export_types(debug_location: bool, routes: Vec<RouteInfo>) -> Result<()> 
       ))?
       .canonicalize()?;
 
-    let cwd = cwd.to_string_lossy();
+    let cwd = cwd.to_string_lossy().to_string();
 
     #[cfg(target_os = "windows")]
     let cwd = display_path(&*cwd);

@@ -1,41 +1,53 @@
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 const message = ref('');
 const completed = ref(true);
 const cancelled = ref(false);
+const failed = ref(false);
 const currentThreadId = ref<string | null>(null);
 
 export function useStreamingMessage() {
-  const startStreaming = (threadId: string) => {
+  function onStreamStarted(threadId: string) {
     message.value = '';
     completed.value = false;
     cancelled.value = false;
+    failed.value = false;
     currentThreadId.value = threadId;
-  };
+  }
 
-  const completeStreaming = () => {
+  function onStreamCompleted() {
     completed.value = true;
+    cancelled.value = false;
+    failed.value = false;
     currentThreadId.value = null;
-  };
+  }
 
-  const cancelStreaming = () => {
+  function onStreamCancelled() {
     cancelled.value = true;
     completed.value = true;
+    failed.value = false;
     currentThreadId.value = null;
-  };
+  }
 
-  const isStreaming = () => {
-    return !completed.value && !cancelled.value;
-  };
+  function onStreamFailed() {
+    failed.value = true;
+    completed.value = true;
+    cancelled.value = false;
+    currentThreadId.value = null;
+  }
+
+  const isStreaming = computed(() => !completed.value && !cancelled.value && !failed.value);
 
   return {
     message,
     completed,
     cancelled,
+    failed,
     currentThreadId,
-    startStreaming,
-    completeStreaming,
-    cancelStreaming,
+    onStreamStarted,
+    onStreamCompleted,
+    onStreamCancelled,
+    onStreamFailed,
     isStreaming,
   };
 }

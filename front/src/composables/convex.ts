@@ -68,7 +68,13 @@ export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<Quer
 
   function subscribe(args?: QueryArgs<Q>) {
     if (unsubscribe) unsubscribe();
-    unsubscribe = client.onUpdate(query, args, onResult, onError);
+    try {
+      unsubscribe = client.onUpdate(query, args, onResult, onError);
+    } catch (err) {
+      console.error('Subscription failed:', err);
+      error.value = err as Error;
+      data.value = null;
+    }
   }
 
   if (maybeArgs) {

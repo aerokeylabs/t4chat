@@ -8,7 +8,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="text-primary-foreground mb-12 bg-blue-800" v-if="message.status === 'complete'">
+  <div class="text-primary-foreground mb-12 bg-blue-400/50" v-if="message.status === 'complete'">
     <template v-for="part in message.parts">
       <Prose v-if="part.type === 'text'" :source="part.text" />
       <div v-else>{{ { part } }}</div>

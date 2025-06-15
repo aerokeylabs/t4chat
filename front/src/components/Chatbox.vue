@@ -3,9 +3,10 @@ import IconInput from '@/components/IconInput.vue';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useChatbox } from '@/composables/chatbox';
+import { useStreamingMessage } from '@/composables/streamingMessage';
 import { MODELS, type ModelId } from '@/lib/models';
 import { useEventListener } from '@vueuse/core';
-import { ChevronDownIcon, GlobeIcon, PaperclipIcon, SearchIcon, Send } from 'lucide-vue-next';
+import { ChevronDownIcon, GlobeIcon, PaperclipIcon, SearchIcon, SendIcon, StopCircleIcon } from 'lucide-vue-next';
 import { computed, nextTick, ref, useTemplateRef } from 'vue';
 
 const FEATURED_MODEL_IDS: ModelId[] = [
@@ -25,23 +26,27 @@ const FEATURED_MODELS = FEATURED_MODEL_IDS.map((modelId) => MODELS.get(modelId)!
 
 const model = ref(FEATURED_MODELS[0].id);
 
-const props = defineProps<{
-  disabled?: boolean;
-}>();
 const emit = defineEmits<{
   (e: 'send', message: string): void;
+  (e: 'cancel'): void;
+  (e: 'select-model', model: ModelId): void;
 }>();
 
 const textarea = useTemplateRef('textarea');
 
 const { value: message } = useChatbox();
+const { isStreaming } = useStreamingMessage();
 
 const messageValid = computed(() => {
   return message.value.trim() !== '';
 });
 
 function send() {
-  if (message.value.trim() === '' || props.disabled) return;
+  if (message.value.trim() === '') return;
+
+  if (isStreaming.value) {
+    cancel();
+  }
 
   emit('send', message.value);
 
@@ -77,6 +82,11 @@ const selectModelOpen = ref(false);
 function selectModel(id: ModelId) {
   selectModelOpen.value = false;
   model.value = id;
+  emit('select-model', id);
+}
+
+function cancel() {
+  emit('cancel');
 }
 </script>
 
@@ -124,8 +134,12 @@ function selectModel(id: ModelId) {
         </Button>
       </div>
 
-      <Button size="icon" variant="ghost" :disabled="disabled || !messageValid" @click="send">
-        <Send class="size-5" />
+      <Button v-if="isStreaming" size="icon" variant="ghost" @click="cancel">
+        <StopCircleIcon class="size-5" />
+      </Button>
+
+      <Button v-else size="icon" variant="ghost" :disabled="!messageValid" @click="send">
+        <SendIcon class="size-5" />
       </Button>
     </div>
   </div>

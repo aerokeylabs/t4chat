@@ -91,3 +91,22 @@ export const complete = mutation({
     return { _id: message._id };
   },
 });
+
+export const cancel = mutation({
+  args: { messageId: v.id('messages') },
+  handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+
+    if (message == null) return null;
+
+    if (message.role === 'assistant') {
+      await ctx.db.patch(message._id, {
+        status: 'cancelled',
+      });
+    } else {
+      throw new Error('Only assistant messages can be cancelled');
+    }
+
+    return { _id: message._id };
+  },
+});

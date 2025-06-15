@@ -1,4 +1,5 @@
 import { SSE } from 'sse.js';
+import type { CancelMessageRequest, CancelMessageResponse } from './types';
 
 export function getApiUrl(path: string): string {
   const baseUrl = import.meta.env.VITE_API_URL;
@@ -58,6 +59,6 @@ export function apiPostSse<TReq>(path: string, body: TReq): SSE {
   });
 }
 
-export async function cancelMessage(threadId: string): Promise<{ success: boolean; message: string }> {
-  return apiPost('message/cancel', { threadId });
+export async function cancelMessage(threadId: string) {
+  return apiPost<CancelMessageResponse, CancelMessageRequest>('message/cancel', { threadId });
 }

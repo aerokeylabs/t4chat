@@ -2,14 +2,13 @@
 import AppSidebar from '@/components/AppSidebar.vue';
 import Chatbox from '@/components/Chatbox.vue';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import { useChatbox } from '@/composables/chatbox';
 import { useMutation } from '@/composables/convex';
 import { useStreamingMessage } from '@/composables/streamingMessage';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
-import { apiPostSse } from '@/lib/api';
+import { apiPostSse, cancelMessage } from '@/lib/api';
 import { Routes, type CreateMessageRequest } from '@/lib/types';
-import type { SSE } from 'sse.js';
+import { SSE, type SSEvent } from 'sse.js';
 import { computed, ref } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 
@@ -23,94 +22,160 @@ const createMessageMutation = useMutation(api.threads.createMessage);
 
 const {
   message: streamingMessage,
-  startStreaming,
-  completeStreaming,
+  onStreamStarted,
+  onStreamCompleted,
+  onStreamCancelled,
+  onStreamFailed,
+  isStreaming,
 } = useStreamingMessage();
 
-const { hide } = useChatbox();
+const model = ref('');
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-let currentSseSource: SSE | null = null;
+let eventSource: SSE | null = null;
 
 async function onSend(message: string) {
-  const model = 'openai/gpt-4o-mini';
   const modelParams = { includeSearch: false, reasoningEffort: 'medium' };
 
-  let source: SSE;
   let activeThreadId: string;
 
-  if (isInThread.value) {
-    console.info('send message to thread', threadId.value, 'with content', message);
-    const result = await createMessageMutation({
-      threadId: threadId.value as Id<'threads'>,
-      messageParts: [{ type: 'text', text: message }],
-      model,
-      modelParams,
-    });
+  if (eventSource != null) {
+    console.warn('Cancelling previous streaming message');
 
-    if (result == null) {
-      console.error('Failed to create message in thread', threadId.value);
-      return;
+    if (isStreaming.value) {
+      onStreamCancelled();
     }
 
-    console.debug('created message', result.assistantMessageId, 'in thread', threadId.value);
+    try {
+      eventSource.close();
+      eventSource = null;
+    } catch (error) {
+      console.error('Error closing previous SSE connection:', error);
+    }
 
-    source = apiPostSse<CreateMessageRequest>(Routes.message(), {
-      threadId: threadId.value,
-      responseMessageId: result.assistantMessageId,
-      messageParts: [{ type: 'text', text: message }],
-      model,
-      modelParams,
-    });
-    
-    activeThreadId = threadId.value;
-  } else {
-    console.debug('create new thread with content', message);
-
-    const thread = await createThreadMutation({ model, modelParams, message });
-
-    console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
-
-    router.push(`/chat/${thread.threadId}`);
-
-    source = apiPostSse<CreateMessageRequest>(Routes.message(), {
-      threadId: thread.threadId,
-      responseMessageId: thread.assistantMessageId,
-      messageParts: [{ type: 'text', text: message }],
-      model,
-      modelParams,
-    });
-    
-    activeThreadId = thread.threadId;
+    streamingMessage.value = '';
   }
 
   try {
-    startStreaming(activeThreadId);
-    hide.value = false;
-    currentSseSource = source;
+    if (isInThread.value) {
+      console.info('send message to thread', threadId.value, 'with content', message);
+      const result = await createMessageMutation({
+        threadId: threadId.value as Id<'threads'>,
+        messageParts: [{ type: 'text', text: message }],
+        model: model.value,
+        modelParams,
+      });
 
-    source.addEventListener('message', (event: { data: string }) => {
-      streamingMessage.value += event.data;
-      hide.value = true;
+      if (result == null) {
+        console.error('Failed to create message in thread', threadId.value);
+        return;
+      }
+
+      console.debug('created message', result.assistantMessageId, 'in thread', threadId.value);
+
+      eventSource = apiPostSse<CreateMessageRequest>(Routes.message(), {
+        threadId: threadId.value,
+        responseMessageId: result.assistantMessageId,
+        messageParts: [{ type: 'text', text: message }],
+        model: model.value,
+        modelParams,
+      });
+
+      activeThreadId = threadId.value;
+    } else {
+      console.debug('create new thread with content', message);
+
+      const thread = await createThreadMutation({ model: model.value, modelParams, message });
+
+      console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
+
+      router.push(`/chat/${thread.threadId}`);
+
+      eventSource = apiPostSse<CreateMessageRequest>(Routes.message(), {
+        threadId: thread.threadId,
+        responseMessageId: thread.assistantMessageId,
+        messageParts: [{ type: 'text', text: message }],
+        model: model.value,
+        modelParams,
+      });
+
+      activeThreadId = thread.threadId;
+    }
+
+    onStreamStarted(activeThreadId);
+
+    // 0: text
+    // 1: error
+    // 2: cancelled
+    // 3: refusal
+    // 4: end
+    type ChatEvent = ['0', string] | ['1'] | ['2'] | ['3', string] | ['4'];
+
+    eventSource.addEventListener('message', (event: SSEvent) => {
+      // event.data format is 'type:value'
+      const [type, value] = event.data.split(':', 2) as ChatEvent;
+
+      switch (type) {
+        case '0': {
+          streamingMessage.value += value;
+          break;
+        }
+        case '1': {
+          console.error('Error in SSE stream');
+          onStreamFailed();
+          break;
+        }
+        case '2': {
+          console.warn('SSE stream cancelled');
+          onStreamCancelled();
+          break;
+        }
+        case '3': {
+          console.warn('SSE stream refusal:', value);
+          onStreamCancelled();
+          break;
+        }
+        case '4': {
+          console.info('SSE stream ended');
+          onStreamCompleted();
+          eventSource?.close();
+          break;
+        }
+      }
     });
 
-    source.addEventListener('end', () => {
-      completeStreaming();
-      currentSseSource = null;
+    eventSource.addEventListener('end', (event: SSEvent) => {
+      console.info('SSE stream ended:', event);
+      onStreamCompleted();
+      eventSource?.close();
     });
 
-    source.addEventListener('error', (error: any) => {
-      console.error('SSE error:', error);
-      completeStreaming();
-      currentSseSource = null;
+    eventSource.addEventListener('error', (event: SSEvent) => {
+      console.error('SSE error:', event);
+      onStreamFailed();
+      eventSource?.close();
     });
-
   } catch (error) {
     console.error('Error sending message:', error);
-    completeStreaming();
-    streamingMessage.value = '';
-    currentSseSource = null;
+    onStreamFailed();
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
   }
+}
+
+async function onCancel() {
+  const result = await cancelMessage(threadId.value);
+
+  if (result.success) {
+    console.info('Message cancelled successfully in thread', threadId.value);
+  } else {
+    console.warn('Failed to cancel message in thread', threadId.value);
+  }
+}
+
+function onSelectModel(modelId: string) {
+  model.value = modelId;
 }
 
 const chatboxHeight = ref(300);
@@ -126,7 +191,7 @@ const chatboxHeight = ref(300);
       </div>
 
       <div ref="chatbox-container" class="chatbox-container">
-        <Chatbox @send="onSend" />
+        <Chatbox @send="onSend" @cancel="onCancel" @select-model="onSelectModel" />
       </div>
     </main>
   </SidebarProvider>

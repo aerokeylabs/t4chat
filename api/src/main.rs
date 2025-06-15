@@ -9,11 +9,7 @@ use api::types::export_types;
 async fn main() -> anyhow::Result<()> {
   dotenvy::dotenv().context("failed to load .env file")?;
 
-  #[cfg(debug_assertions)]
-  logger::init_tracing_human()?;
-
-  #[cfg(not(debug_assertions))]
-  logger::init_tracing_json()?;
+  logger::init_from_env().context("failed to initialize logger")?;
 
   tracing::info!("hello awa");
 

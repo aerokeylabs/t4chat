@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { useChatbox } from '@/composables/chatbox';
+import { useStreamingMessage } from '@/composables/streamingMessage';
 import { useUser } from '@clerk/vue';
 import { CodeIcon, GraduationCapIcon, NewspaperIcon, SparklesIcon } from 'lucide-vue-next';
 import { computed, ref, type FunctionalComponent } from 'vue';
@@ -78,11 +79,12 @@ const prompts = computed(() => {
   return categories.get(selectedCategory.value)?.[1] ?? defaultPrompts;
 });
 
-const { value, empty, hide } = useChatbox();
+const { value, empty } = useChatbox();
+const { isStreaming } = useStreamingMessage();
 </script>
 
 <template>
-  <section class="new-chat-page" :class="{ 'has-message': !empty || hide }">
+  <section class="new-chat-page" :class="{ 'hide-suggestions': !empty || isStreaming }">
     <h1 class="mb-2 text-3xl font-semibold">How can I help you, {{ user?.firstName ?? 'someone' }}?</h1>
 
     <div class="flex gap-2">
@@ -98,7 +100,7 @@ const { value, empty, hide } = useChatbox();
       </Button>
     </div>
 
-    <div class="example-prompts">
+    <div class="suggested-prompts">
       <div v-for="(prompt, i) in prompts" :key="i" class="w-full">
         <Button variant="ghost" class="w-full justify-start" @click="value = prompt">
           {{ prompt }}
@@ -118,7 +120,7 @@ const { value, empty, hide } = useChatbox();
   pointer-events: auto;
   transition: opacity 0.2s ease-in-out;
 
-  > .example-prompts {
+  > .suggested-prompts {
     display: flex;
     flex-direction: column;
     gap: calc(var(--spacing) * 2);
@@ -133,7 +135,7 @@ const { value, empty, hide } = useChatbox();
     }
   }
 
-  &.has-message {
+  &.hide-suggestions {
     opacity: 0;
     pointer-events: none;
     position: absolute;

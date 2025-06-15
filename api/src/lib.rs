@@ -6,6 +6,7 @@ pub mod convex;
 pub mod convex_serde;
 pub mod error;
 pub mod logger;
+pub mod openai;
 pub mod routes;
 pub mod setup;
 pub mod state;

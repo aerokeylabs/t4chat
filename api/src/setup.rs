@@ -1,6 +1,9 @@
 use anyhow::Context;
+use axum::http::header::AUTHORIZATION;
+use axum::http::{HeaderMap, HeaderValue};
 use convex::ConvexClient;
 use openai_api_rs::v1::api::OpenAIClient;
+use reqwest::{Client, Method, RequestBuilder, Url};
 use secrecy::ExposeSecret;
 use snowflake::SnowflakeGenerator;
 use tokio::net::TcpListener;
@@ -10,16 +13,44 @@ use crate::config::{Config, EPOCH_MS, OpenrouterConfig};
 use crate::prelude::*;
 use crate::routes::{RouteInfo, Router, print_routes, router};
 
-fn create_openrouter_client(config: &OpenrouterConfig) -> OpenAIClient {
+pub struct OpenrouterClient {
+  pub base_url: Url,
+  pub openai: OpenAIClient,
+  pub http: Client,
+}
+
+impl OpenrouterClient {
+  pub fn request_builder(&self, method: Method, path: &str) -> anyhow::Result<RequestBuilder> {
+    Ok(self.http.request(method, self.base_url.join(path)?))
+  }
+}
+
+fn create_openrouter_client(config: &OpenrouterConfig) -> anyhow::Result<OpenrouterClient> {
+  let api_key = config.api_key.expose_secret();
+
   // unwrap because build function just cant fail yet returns
   // result<client, box<dyn Error>> for some reason
-
-  OpenAIClient::builder()
+  let openai = OpenAIClient::builder()
     .with_endpoint(config.api_url.clone())
-    .with_api_key(config.api_key.expose_secret())
-    .with_header("api-key", config.api_key.expose_secret())
+    .with_api_key(api_key)
+    .with_header("api-key", api_key)
     .build()
-    .unwrap()
+    .unwrap();
+
+  let mut headers = HeaderMap::new();
+  headers.insert("api-key", HeaderValue::from_str(api_key)?);
+  headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {api_key}"))?);
+
+  let http = Client::builder()
+    .default_headers(headers)
+    .build()
+    .context("failed to create HTTP client")?;
+
+  Ok(OpenrouterClient {
+    base_url: config.api_url.parse()?,
+    openai,
+    http,
+  })
 }
 
 async fn create_convex_client(config: &Config) -> anyhow::Result<ConvexClient> {
@@ -37,7 +68,7 @@ pub struct Application {
 
 impl Application {
   pub async fn build(config: Config) -> anyhow::Result<Self> {
-    let openrouter = create_openrouter_client(&config.openrouter);
+    let openrouter = create_openrouter_client(&config.openrouter)?;
     let convex = create_convex_client(&config).await?;
 
     let snowflakes = SnowflakeGenerator::new(config.snowflake.worker, config.snowflake.process, EPOCH_MS);
@@ -50,7 +81,7 @@ impl Application {
 
     let port = listener.local_addr()?.port();
 
-    let (state, router) = create_router(openrouter, config.openrouter, convex, snowflakes);
+    let (state, router) = create_router(openrouter, convex, snowflakes);
 
     Ok(Self {
       port,
@@ -91,12 +122,11 @@ async fn root() -> &'static str {
 }
 
 fn create_router(
-  openrouter: OpenAIClient,
-  openrouter_config: OpenrouterConfig,
+  openrouter: OpenrouterClient,
   convex: ConvexClient,
   snowflakes: SnowflakeGenerator,
 ) -> (AppState, Router<AppState>) {
-  let state = AppState::new(openrouter, openrouter_config, convex, snowflakes);
+  let state = AppState::new(openrouter, convex, snowflakes);
 
   let router = router(state.clone()).get("/", root);
 

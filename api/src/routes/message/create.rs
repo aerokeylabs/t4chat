@@ -1,19 +1,21 @@
+use std::sync::Arc;
+
 use axum::response::Sse;
 use axum::response::sse::Event;
 use convex::ConvexClient;
 use futures::{Stream, StreamExt, pin_mut};
-use tokio::sync::mpsc::{self, Receiver, Sender};
-use tokio::time::Duration;
-use serde_json::json;
-use secrecy::ExposeSecret;
-use openai_api_rs::v1::api::OpenAIClient;
-use openai_api_rs::v1::chat_completion::{ChatCompletionRequest, ChatCompletionMessage, MessageRole, Content};
+use openai_api_rs::v1::chat_completion::{ChatCompletionMessage, ChatCompletionRequest, Content, MessageRole};
+use reqwest::{Method, RequestBuilder};
+use reqwest_eventsource::{Event as EventSourceEvent, EventSource};
+use stream_cancel::{Trigger, Valved};
+use tokio::sync::{Mutex, mpsc};
 
-use crate::config::OpenrouterConfig;
 use crate::convex::messages::{CompleteMessageArgs, Message, MessageStatus, ModelParams};
 use crate::convex::threads::Thread;
 use crate::convex::{ConvexError, messages, threads};
+use crate::openai::{ChatCompletion, ChatDelta};
 use crate::prelude::*;
+use crate::setup::OpenrouterClient;
 use crate::{convex_serde, into_response};
 
 #[derive(Debug, Deserialize, Type)]
@@ -68,187 +70,235 @@ into_response!(
   }
 );
 
-const DATA: &str = include_str!("../../../test/message.md");
-
-pub fn str_chunks(s: &str, chunk_size: usize) -> Vec<String> {
-  s.chars()
-    .collect::<Vec<_>>()
-    .chunks(chunk_size)
-    .map(|chunk| chunk.iter().collect())
-    .collect()
+struct ChatContext {
+  model: String,
+  message: Message,
+  thread: Thread,
+  complete_args: CompleteMessageArgs,
+  set_title: bool,
+  user_message: String,
 }
 
-// Keep the mock function for fallback/testing purposes
-fn stream_data() -> impl Stream<Item = String> {
-  let chunks = str_chunks(DATA, 8);
+pub enum OpenrouterEvent {
+  Completion(ChatCompletion),
+  Error,
+}
 
-  async_stream::stream! {
-    let mut interval = tokio::time::interval(Duration::from_millis(25));
+#[tracing::instrument("stream openrouter chat", skip_all, err)]
+async fn stream_openrouter_chat(
+  request: RequestBuilder,
+) -> Result<(Trigger, impl Stream<Item = OpenrouterEvent>), anyhow::Error> {
+  let source = EventSource::new(request)?;
 
-    for text in chunks {
-      interval.tick().await;
+  let stream = async_stream::stream! {
+    for await value in source {
+      match value {
+        Ok(EventSourceEvent::Message(data)) => {
+          let text = data.data;
+          info!("Received text: {text}");
+          match serde_json::from_str(&text) {
+            Ok(parsed) => yield OpenrouterEvent::Completion(parsed),
+            Err(err) => {
+              error!("Failed to parse OpenRouter response: {err:?}");
+              yield OpenrouterEvent::Error;
+            },
+          }
+        },
+        Err(err) => {
+          error!("Stream error: {err:?}");
+          yield OpenrouterEvent::Error;
+          break;
+        },
+        _ => {},
+      }
+    }
+  };
 
-      yield text;
+  let (trigger, stream) = Valved::new(stream);
+
+  Ok((trigger, stream))
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum StreamChatError {
+  #[error("unexpected error: {0}")]
+  Unexpected(#[from] anyhow::Error),
+  #[error("convex error: {0}")]
+  ConvexError(#[from] ConvexError),
+  #[error("failed to create OpenRouter stream: {0}")]
+  OpenRouter(anyhow::Error),
+  #[error("failed to append text to message")]
+  AppendText,
+  #[error("failed to complete message")]
+  CompleteMessage,
+  #[error("failed to set thread title")]
+  SetThreadTitle,
+}
+
+enum ChatEvent {
+  Text(String),
+  Cancelled,
+  Error,
+  Refusal(String),
+  End,
+}
+
+impl ChatEvent {
+  fn into_string(self) -> String {
+    match self {
+      ChatEvent::Text(text) => format!("0:{text}"),
+      ChatEvent::Error => "1:".into(),
+      ChatEvent::Cancelled => "2:".into(),
+      ChatEvent::Refusal(refusal) => format!("3:{refusal}"),
+      ChatEvent::End => "4:".into(),
     }
   }
 }
 
-async fn stream_openrouter_chat(
-  openrouter: &OpenAIClient,
-  user_message: String,
-  model: String,
-  _model_params: Option<ModelParams>,
-) -> anyhow::Result<std::pin::Pin<Box<dyn Stream<Item = anyhow::Result<String>> + Send>>> {
+#[tracing::instrument("stream_chat", skip_all, fields(model = context.model, message_id = context.message.id, thread_id = context.thread.id), err)]
+async fn stream_chat(
+  openrouter: Arc<Mutex<OpenrouterClient>>,
+  mut convex_client: ConvexClient,
+  chat_tx: mpsc::Sender<ChatEvent>,
+  mut kill_rx: mpsc::Receiver<()>,
+  context: ChatContext,
+) -> Result<(), StreamChatError> {
+  let openrouter = openrouter.lock().await;
+
   let request = ChatCompletionRequest::new(
-    model.clone(),
+    context.model.clone(),
     vec![ChatCompletionMessage {
-      role: MessageRole::User,
-      content: Content::Text(user_message),
+      role: MessageRole::user,
+      content: Content::Text(context.user_message),
       name: None,
       tool_calls: None,
       tool_call_id: None,
     }],
   )
   .stream(true)
-  .max_tokens(4096)
+  .max_tokens(500)
   .temperature(0.7);
 
-  let stream = async_stream::stream! {
-    match openrouter.chat_completion_stream(request).await {
-      Ok(mut stream) => {
-        while let Some(response) = stream.next().await {
-          match response {
-            Ok(chat_response) => {
-              if let Some(choices) = chat_response.choices.first() {
-                if let Some(delta) = &choices.delta {
-                  if let Some(content) = &delta.content {
-                    if !content.is_empty() {
-                      yield Ok(content.clone());
-                    }
-                  }
-                }
-              }
-            }
-            Err(e) => {
-              error!("OpenRouter stream error: {:?}", e);
-              yield Err(anyhow::anyhow!("OpenRouter stream error: {}", e));
-              return;
-            }
-          }
-        }
-      }
-      Err(e) => {
-        error!("Failed to create OpenRouter stream: {:?}", e);
-        yield Err(anyhow::anyhow!("Failed to create OpenRouter stream: {}", e));
-        return;
-      }
-    }
-  };
+  let request = openrouter
+    .request_builder(Method::POST, "chat/completions")?
+    .json(&request);
 
-  Ok(Box::pin(stream))
-}
+  drop(openrouter);
 
-async fn stream_chat(
-  openrouter: std::sync::Arc<tokio::sync::Mutex<OpenAIClient>>,
-  mut convex_client: ConvexClient,
-  text_tx: Sender<String>,
-  mut kill_rx: Receiver<()>,
-  message: Message,
-  thread: Thread,
-  complete_args: CompleteMessageArgs,
-  set_title: bool,
-  user_message: String,
-) -> anyhow::Result<()> {
-  // Get the OpenRouter client
-  let client = openrouter.lock().await;
-  
-  // Create the OpenRouter stream
-  let stream = match stream_openrouter_chat(
-    &client,
-    user_message,
-    complete_args.model.clone(),
-    complete_args.model_params.clone(),
-  ).await {
-    Ok(stream) => stream,
-    Err(e) => {
-      error!("Failed to create OpenRouter stream: {:?}", e);
-      // Fallback to mock data for debugging
-      return Err(e);
-    }
-  };
-
-  // Release the client lock
-  drop(client);
+  let (stream_trigger, stream) = stream_openrouter_chat(request)
+    .await
+    .map_err(StreamChatError::OpenRouter)?;
 
   pin_mut!(stream);
 
-  let mut accumulator = String::new();
-  let mut was_cancelled = false;
+  let message_id = context.message.id.clone();
+  let mut convex = convex_client.clone();
 
-  while let Some(text_result) = stream.next().await {
-    // Check for cancellation
-    if kill_rx.try_recv().is_ok() {
-      info!("streaming killed, cleaning up");
-      was_cancelled = true;
-      
-      // Send cancellation event to client
-      let _ = text_tx.send("[CANCELLED]".to_string()).await;
-      
-      // Mark message as cancelled in Convex
-      if let Err(e) = messages::cancel(&mut convex_client, message.id.clone()).await {
-        error!("Failed to mark message as cancelled in Convex: {:?}", e);
-      }
-      
-      break;
+  let kill_listener = async move {
+    info!("Listening for kill signal for message ID: {}", message_id);
+
+    // if Some(_) is received, the kill signal was sent
+    // if None is received the channel was closed so kill anyways
+    let _ = kill_rx.recv().await;
+
+    info!("streaming killed, cleaning up");
+    stream_trigger.cancel();
+
+    if !messages::cancel(&mut convex, message_id).await? {
+      error!("failed to cancel message in Convex");
     }
 
-    let text = match text_result {
-      Ok(text) => text,
-      Err(e) => {
-        error!("Stream error: {:?}", e);
-        let _ = text_tx.send(format!("[ERROR: {}]", e)).await;
-        break;
+    Ok(ChatEvent::Cancelled)
+  };
+
+  let mut convex = convex_client.clone();
+  let event_listener_chat_tx = chat_tx.clone();
+
+  let message_id = context.message.id.clone();
+
+  let event_listener = async move {
+    let chat_tx = event_listener_chat_tx;
+    let mut accumulator = String::new();
+
+    info!("Starting OpenRouter chat stream for message ID: {}", context.message.id);
+
+    while let Some(event) = stream.next().await {
+      let mut completion = match event {
+        OpenrouterEvent::Completion(completion) => completion,
+        OpenrouterEvent::Error => {
+          let _ = chat_tx.send(ChatEvent::Error).await;
+          break;
+        }
+      };
+
+      if completion.choices.is_empty() {
+        warn!("Received empty choices from OpenRouter response");
+        continue;
       }
-    };
 
-    let _ = text_tx.send(text.clone()).await;
-    accumulator.push_str(&text);
+      let choice = completion.choices.swap_remove(0);
 
-    // Batch updates to Convex every 100 characters
-    if accumulator.len() >= 100 {
-      if let Err(e) = messages::append_text(&mut convex_client, message.id.clone(), accumulator.clone()).await {
-        error!("Failed to append text to message: {:?}", e);
-        return Err(anyhow::anyhow!("failed to append text to message"));
+      let text = match choice.delta {
+        ChatDelta::Text { content } => content,
+        ChatDelta::Finished { finish_reason } => {
+          info!("Chat completed with finish reason: {}", finish_reason);
+          break;
+        }
+        ChatDelta::Refusal { refusal } => {
+          let _ = chat_tx.send(ChatEvent::Refusal(refusal)).await;
+          break;
+        }
+      };
+
+      accumulator.push_str(&text);
+      let _ = chat_tx
+        .send(ChatEvent::Text(text.replace('\r', "").replace('\n', "\\n")))
+        .await;
+
+      if accumulator.len() >= 100 {
+        let success = messages::append_text(&mut convex, context.message.id.clone(), accumulator.clone()).await?;
+
+        if !success {
+          return Err(StreamChatError::AppendText);
+        }
+
+        accumulator.clear();
       }
-
-      accumulator.clear();
     }
-  }
 
-  // Don't complete the message if it was cancelled
-  if was_cancelled {
-    return Ok(());
-  }
+    if !accumulator.is_empty() {
+      let success = messages::append_text(&mut convex, context.message.id, accumulator).await?;
 
-  // Append any remaining text
-  if !accumulator.is_empty() {
-    if let Err(e) = messages::append_text(&mut convex_client, message.id.clone(), accumulator).await {
-      error!("Failed to append remaining text to message: {:?}", e);
-      return Err(anyhow::anyhow!("failed to append remaining text to message"));
+      if !success {
+        return Err(StreamChatError::AppendText);
+      }
     }
+
+    Ok(ChatEvent::End)
+  };
+
+  info!("Starting event listeners for message ID: {}", message_id);
+
+  let final_event = tokio::select! {
+    res = event_listener => res,
+    res = kill_listener => res,
+  }?;
+
+  let _ = chat_tx.send(final_event).await;
+
+  let success = messages::complete(&mut convex_client, &context.complete_args).await?;
+
+  if !success {
+    return Err(StreamChatError::CompleteMessage);
   }
 
-  // Mark message as complete
-  if let Err(e) = messages::complete(&mut convex_client, &complete_args).await {
-    error!("Failed to complete message: {:?}", e);
-    return Err(anyhow::anyhow!("failed to complete message"));
-  }
+  // todo: get title from model
 
-  // Set thread title if needed
-  if set_title {
-    if let Err(e) = threads::set_title(&mut convex_client, thread.id, "Chat Conversation".to_string()).await {
-      error!("Failed to set thread title: {:?}", e);
-      return Err(anyhow::anyhow!("failed to set thread title"));
+  if context.set_title {
+    let success = threads::set_title(&mut convex_client, context.thread.id, "Chat Conversation".to_string()).await?;
+
+    if !success {
+      return Err(StreamChatError::SetThreadTitle);
     }
   }
 
@@ -288,18 +338,18 @@ pub async fn create_message(
     }),
   };
 
-  let (text_tx, mut text_rx) = mpsc::channel(128);
+  let (text_tx, mut chat_rx) = mpsc::channel(128);
   let (kill_tx, kill_rx) = mpsc::channel(1);
 
   state.active_threads.lock().await.insert(thread.id.clone(), kill_tx);
 
   let set_title = thread.title.is_none();
-  
-  // Extract user message from payload
-  let user_message = payload.message_parts
-    .iter()
-    .filter_map(|part| match part {
-      MessagePart::Text { text } => Some(text.clone()),
+
+  let user_message = payload
+    .message_parts
+    .into_iter()
+    .map(|part| match part {
+      MessagePart::Text { text } => text,
     })
     .collect::<Vec<_>>()
     .join(" ");
@@ -307,32 +357,30 @@ pub async fn create_message(
   let openrouter = state.openrouter.clone();
   let convex_client = state.convex.clone();
   let active_threads = state.active_threads.clone();
-  let thread_id_for_cleanup = thread.id.clone();
+  let thread_id = thread.id.clone();
+
+  let context = ChatContext {
+    model: payload.model,
+    message,
+    thread,
+    complete_args,
+    set_title,
+    user_message,
+  };
 
   tokio::spawn(async move {
-    let result = stream_chat(
-      openrouter,
-      convex_client,
-      text_tx,
-      kill_rx,
-      message,
-      thread,
-      complete_args,
-      set_title,
-      user_message,
-    ).await;
+    let result = stream_chat(openrouter, convex_client, text_tx, kill_rx, context).await;
 
-    // Always cleanup the active thread when streaming completes
-    active_threads.lock().await.remove(&thread_id_for_cleanup);
-    
+    active_threads.lock().await.remove(&thread_id);
+
     if let Err(err) = result {
-      error!("failed to stream chat: {:?}", err);
+      error!("Failed to stream chat: {:?}", err);
     }
   });
 
   let stream = async_stream::stream! {
-    while let Some(text) = text_rx.recv().await {
-      yield Ok(Event::default().data(text).event("message"))
+    while let Some(event) = chat_rx.recv().await {
+      yield Ok(Event::default().data(event.into_string()).event("message"))
     }
 
     yield Ok(Event::default().event("end"));

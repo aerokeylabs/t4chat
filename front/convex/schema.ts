@@ -27,7 +27,9 @@ export default defineSchema({
       }),
     ),
     resumableStreamId: v.optional(v.string()),
-    status: v.optional(v.union(v.literal('pending'), v.literal('complete'))),
+    status: v.optional(
+      v.union(v.literal('pending'), v.literal('complete'), v.literal('cancelled'), v.literal('error')),
+    ),
     timeToFirstToken: v.optional(v.float64()),
     tokens: v.optional(v.float64()),
     tokensPerSecond: v.optional(v.float64()),

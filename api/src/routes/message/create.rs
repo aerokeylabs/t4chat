@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
+use axum::http::HeaderMap;
 use axum::response::Sse;
 use axum::response::sse::Event;
 use convex::ConvexClient;
 use futures::{Stream, StreamExt, pin_mut};
 use openai_api_rs::v1::chat_completion::{ChatCompletionMessage, ChatCompletionRequest, Content, MessageRole};
 use reqwest::{Method, RequestBuilder};
-use reqwest_eventsource::{Event as EventSourceEvent, EventSource};
+use reqwest_eventsource::{Error as EventSourceError, Event as EventSourceEvent, EventSource};
 use stream_cancel::{Trigger, Valved};
 use tokio::sync::{Mutex, mpsc};
 
@@ -15,7 +16,7 @@ use crate::convex::threads::Thread;
 use crate::convex::{ConvexError, messages, threads};
 use crate::openai::{ChatCompletion, ChatDelta};
 use crate::prelude::*;
-use crate::setup::OpenrouterClient;
+use crate::setup::{OpenrouterClient, add_custom_key};
 use crate::{convex_serde, into_response};
 
 #[derive(Debug, Deserialize, Type)]
@@ -75,6 +76,7 @@ struct ChatContext {
   message: Message,
   thread: Thread,
   complete_args: CompleteMessageArgs,
+  custom_key: Option<String>,
   set_title: bool,
   user_message: String,
 }
@@ -82,11 +84,13 @@ struct ChatContext {
 pub enum OpenrouterEvent {
   Completion(ChatCompletion),
   Error,
+  Unauthorized,
 }
 
 #[tracing::instrument("stream openrouter chat", skip_all, err)]
 async fn stream_openrouter_chat(
   request: RequestBuilder,
+  using_custom_key: bool,
 ) -> Result<(Trigger, impl Stream<Item = OpenrouterEvent>), anyhow::Error> {
   let source = EventSource::new(request)?;
 
@@ -103,6 +107,9 @@ async fn stream_openrouter_chat(
               yield OpenrouterEvent::Error;
             },
           }
+        },
+        Err(EventSourceError::InvalidStatusCode(StatusCode::UNAUTHORIZED, _)) if using_custom_key => {
+          yield OpenrouterEvent::Unauthorized;
         },
         Err(err) => {
           error!("Stream error: {err:?}");
@@ -141,6 +148,7 @@ enum ChatEvent {
   Error,
   Refusal(String),
   End,
+  Unauthorized,
 }
 
 impl ChatEvent {
@@ -151,6 +159,7 @@ impl ChatEvent {
       ChatEvent::Cancelled => "2:".into(),
       ChatEvent::Refusal(refusal) => format!("3:{refusal}"),
       ChatEvent::End => "4:".into(),
+      ChatEvent::Unauthorized => "5:".into(),
     }
   }
 }
@@ -183,9 +192,12 @@ async fn stream_chat(
     .request_builder(Method::POST, "chat/completions")?
     .json(&request);
 
+  let using_custom_key = context.custom_key.is_some();
+  let request = add_custom_key(context.custom_key, request);
+
   drop(openrouter);
 
-  let (stream_trigger, stream) = stream_openrouter_chat(request)
+  let (stream_trigger, stream) = stream_openrouter_chat(request, using_custom_key)
     .await
     .map_err(StreamChatError::OpenRouter)?;
 
@@ -222,13 +234,16 @@ async fn stream_chat(
 
     info!("Starting OpenRouter chat stream for message ID: {}", context.message.id);
 
-    while let Some(event) = stream.next().await {
+    let final_event = loop {
+      let Some(event) = stream.next().await else {
+        info!("OpenRouter stream ended for message ID: {}", context.message.id);
+        break ChatEvent::End;
+      };
+
       let mut completion = match event {
         OpenrouterEvent::Completion(completion) => completion,
-        OpenrouterEvent::Error => {
-          let _ = chat_tx.send(ChatEvent::Error).await;
-          break;
-        }
+        OpenrouterEvent::Unauthorized => break ChatEvent::Unauthorized,
+        OpenrouterEvent::Error => break ChatEvent::Error,
       };
 
       if completion.choices.is_empty() {
@@ -240,14 +255,8 @@ async fn stream_chat(
 
       let text = match choice.delta {
         ChatDelta::Text { content } => content,
-        ChatDelta::Finished { finish_reason } => {
-          info!("Chat completed with finish reason: {}", finish_reason);
-          break;
-        }
-        ChatDelta::Refusal { refusal } => {
-          let _ = chat_tx.send(ChatEvent::Refusal(refusal)).await;
-          break;
-        }
+        ChatDelta::Finished { .. } => break ChatEvent::End,
+        ChatDelta::Refusal { refusal } => break ChatEvent::Refusal(refusal),
       };
 
       accumulator.push_str(&text);
@@ -264,7 +273,7 @@ async fn stream_chat(
 
         accumulator.clear();
       }
-    }
+    };
 
     if !accumulator.is_empty() {
       let success = messages::append_text(&mut convex, context.message.id, accumulator).await?;
@@ -274,7 +283,7 @@ async fn stream_chat(
       }
     }
 
-    Ok(ChatEvent::End)
+    Ok(final_event)
   };
 
   info!("Starting event listeners for message ID: {}", message_id);
@@ -309,9 +318,15 @@ async fn stream_chat(
 #[axum::debug_handler]
 pub async fn create_message(
   State(state): State<AppState>,
+  headers: HeaderMap,
   Json(payload): Json<CreateMessageRequest>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, CreateMessageError>>>, CreateMessageError> {
   info!("creating chat with payload: {:?}", payload);
+
+  let custom_key = headers
+    .get("X-OpenRouter-Key")
+    .and_then(|value| value.to_str().ok())
+    .map(|s| s.to_string());
 
   let mut convex = state.convex.clone();
 
@@ -364,6 +379,7 @@ pub async fn create_message(
     message,
     thread,
     complete_args,
+    custom_key,
     set_title,
     user_message,
   };

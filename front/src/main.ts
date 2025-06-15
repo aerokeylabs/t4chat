@@ -1,5 +1,6 @@
 import '@/assets/css/index.css';
 import '@/assets/css/md.css';
+import 'vue-sonner/style.css';
 
 import { dark } from '@clerk/themes';
 import { clerkPlugin } from '@clerk/vue';

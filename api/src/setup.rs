@@ -25,6 +25,16 @@ impl OpenrouterClient {
   }
 }
 
+pub fn add_custom_key(key: Option<String>, builder: RequestBuilder) -> RequestBuilder {
+  if let Some(key) = key {
+    builder
+      .header(AUTHORIZATION, format!("Bearer {key}"))
+      .header("api-key", key)
+  } else {
+    builder
+  }
+}
+
 fn create_openrouter_client(config: &OpenrouterConfig) -> anyhow::Result<OpenrouterClient> {
   let api_key = config.api_key.expose_secret();
 

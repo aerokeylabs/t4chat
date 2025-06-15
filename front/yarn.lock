@@ -3944,6 +3944,7 @@ __metadata:
     vite: "npm:^6.3.5"
     vue: "npm:^3.5.16"
     vue-router: "npm:^4.5.1"
+    vue-sonner: "npm:^2.0.0"
     vue-tsc: "npm:^2.2.10"
   languageName: unknown
   linkType: soft
@@ -4309,6 +4310,13 @@ __metadata:
   peerDependencies:
     vue: ^3.2.0
   checksum: 10c0/89fbc11e46c19a4c4d62b807596a0210726dc09bd9e6a319ded1ac0951e6933e581c56acd1b846d3891673b9bad7348564d28ecd8424126d63578b3b5d291d96
+  languageName: node
+  linkType: hard
+
+"vue-sonner@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "vue-sonner@npm:2.0.0"
+  checksum: 10c0/b42373cfd2a985d0007c3ee48bcce91b77854a68bc7968c3311145c2088fcd000170869f400cff2853986961527049ce3b3946751a976ec2f980677813af5198
   languageName: node
   linkType: hard
 

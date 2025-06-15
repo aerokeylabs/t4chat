@@ -72,5 +72,9 @@ const navRoutes = [
   flex-direction: column;
   height: 100%;
   width: 100%;
+
+  gap: var(--spacing);
+
+  padding-block: calc(var(--spacing) * 4);
 }
 </style>

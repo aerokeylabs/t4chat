@@ -1,4 +1,5 @@
-import { SSE } from 'sse.js';
+import { useApiKeys } from '@/composables/keys';
+import { SSE, type SSEHeaders } from 'sse.js';
 import type { CancelMessageRequest, CancelMessageResponse } from './types';
 
 export function getApiUrl(path: string): string {
@@ -49,11 +50,19 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 export function apiPostSse<TReq>(path: string, body: TReq): SSE {
+  const apiKeys = useApiKeys();
+  const headers: SSEHeaders = {
+    'Content-Type': 'application/json',
+  };
+
+  let openrouter = apiKeys.openrouter.value.trim();
+  if (openrouter !== '') {
+    headers['X-OpenRouter-Key'] = openrouter;
+  }
+
   const url = getApiUrl(path);
   return new SSE(url, {
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     payload: JSON.stringify(body),
     method: 'POST',
   });

@@ -11,6 +11,7 @@ import { Routes, type CreateMessageRequest } from '@/lib/types';
 import { SSE, type SSEvent } from 'sse.js';
 import { computed, ref } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
+import { toast } from 'vue-sonner';
 
 const route = useRoute();
 const router = useRouter();
@@ -108,7 +109,8 @@ async function onSend(message: string) {
     // 2: cancelled
     // 3: refusal
     // 4: end
-    type ChatEvent = ['0', string] | ['1'] | ['2'] | ['3', string] | ['4'];
+    // 5: unauthorized
+    type ChatEvent = ['0', string] | ['1'] | ['2'] | ['3', string] | ['4'] | ['5'];
 
     eventSource.addEventListener('message', (event: SSEvent) => {
       // event.data format is 'type:value'
@@ -138,6 +140,20 @@ async function onSend(message: string) {
           console.info('SSE stream ended');
           onStreamCompleted();
           eventSource?.close();
+          break;
+        }
+        case '5': {
+          console.error('Unauthorized SSE stream:', value);
+          onStreamFailed();
+          eventSource?.close();
+          toast.error('Provider returned 401 Unauthorized for provided API key', {
+            action: {
+              label: 'Go to Settings',
+              onClick: () => {
+                router.push('/settings/keys');
+              },
+            },
+          });
           break;
         }
       }

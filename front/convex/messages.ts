@@ -1,9 +1,25 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
+import { getIdentity, validateKey } from './utils';
 
 export const getById = query({
   args: { id: v.id('messages') },
   handler: async (ctx, args) => {
+    const identity = await getIdentity(ctx);
+
+    const message = await ctx.db.get(args.id);
+    if (message?.userId !== identity.tokenIdentifier) return null;
+
+    return message;
+  },
+});
+
+// api only route
+export const apiGetById = query({
+  args: { apiKey: v.string(), id: v.id('messages') },
+  handler: async (ctx, args) => {
+    validateKey(args.apiKey);
+
     const message = await ctx.db.get(args.id);
 
     return message == null ? null : message;
@@ -11,12 +27,35 @@ export const getById = query({
 });
 
 export const getByThreadId = query({
-  args: { threadId: v.string() },
+  args: { threadId: v.id('threads') },
   handler: async (ctx, args) => {
+    const identity = await getIdentity(ctx);
+
+    const thread = await ctx.db.get(args.threadId);
+    if (thread?.userId !== identity.tokenIdentifier) return null;
+
     const messages = await ctx.db
       .query('messages')
-      // .withIndex('by_user', (q) => q.eq('userId', ctx.auth.userId))
-      .withIndex('by_thread', (q) => q.eq('threadId', args.threadId))
+      .withIndex('by_thread', (q) => q.eq('threadId', thread._id))
+      .order('asc')
+      .collect();
+
+    return { messages };
+  },
+});
+
+// api only route
+export const apiGetByThreadId = query({
+  args: { apiKey: v.string(), threadId: v.id('threads') },
+  handler: async (ctx, args) => {
+    validateKey(args.apiKey);
+
+    const thread = await ctx.db.get(args.threadId);
+    if (thread == null) return null;
+
+    const messages = await ctx.db
+      .query('messages')
+      .withIndex('by_thread', (q) => q.eq('threadId', thread._id))
       .order('asc')
       .collect();
 
@@ -28,42 +67,40 @@ function createTextPart(text: string) {
   return { type: 'text', text } as const;
 }
 
-export const appendText = mutation({
-  args: { messageId: v.id('messages'), text: v.string() },
+// api only route
+export const apiAppendText = mutation({
+  args: { apiKey: v.string(), messageId: v.id('messages'), text: v.string() },
   handler: async (ctx, args) => {
-    const message = await ctx.db.get(args.messageId);
+    validateKey(args.apiKey);
 
+    const message = await ctx.db.get(args.messageId);
     if (message == null) return null;
 
-    const existingParts = message.parts;
+    const parts = message.parts;
 
     // if no parts, add a text part with args.text
     // if last part is text, append args.text to it
     // if last part is not text, add a new text part with args.text
-    const lastPart = existingParts.length === 0 ? null : existingParts[existingParts.length - 1];
+    const lastPart = parts.length === 0 ? null : parts[parts.length - 1];
 
     if (lastPart == null) {
-      message.parts.push(createTextPart(args.text));
-      await ctx.db.patch(message._id, {
-        parts: message.parts,
-      });
+      parts.push(createTextPart(args.text));
     } else {
-      const newText = lastPart.text + args.text;
-
-      const newParts = existingParts.slice(0, -1);
-      newParts.push(createTextPart(newText));
-
-      await ctx.db.patch(message._id, {
-        parts: newParts,
-      });
+      lastPart.text += args.text;
     }
+
+    await ctx.db.patch(message._id, {
+      parts,
+    });
 
     return { _id: message._id };
   },
 });
 
-export const complete = mutation({
+// api only route
+export const apiComplete = mutation({
   args: {
+    apiKey: v.string(),
     messageId: v.id('messages'),
     model: v.string(),
     modelParams: v.optional(
@@ -74,8 +111,9 @@ export const complete = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const message = await ctx.db.get(args.messageId);
+    validateKey(args.apiKey);
 
+    const message = await ctx.db.get(args.messageId);
     if (message == null) return null;
 
     if (message.role === 'assistant') {
@@ -92,11 +130,16 @@ export const complete = mutation({
   },
 });
 
-export const cancel = mutation({
-  args: { messageId: v.id('messages') },
+// api only route
+export const apiCancel = mutation({
+  args: {
+    apiKey: v.string(),
+    messageId: v.id('messages'),
+  },
   handler: async (ctx, args) => {
-    const message = await ctx.db.get(args.messageId);
+    validateKey(args.apiKey);
 
+    const message = await ctx.db.get(args.messageId);
     if (message == null) return null;
 
     if (message.role === 'assistant') {

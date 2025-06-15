@@ -104,6 +104,8 @@ async function onSend(message: string) {
 
     onStreamStarted(activeThreadId);
 
+    let ended = false;
+
     // 0: text
     // 1: error
     // 2: cancelled
@@ -138,6 +140,7 @@ async function onSend(message: string) {
         }
         case '4': {
           console.info('SSE stream ended');
+          ended = true;
           onStreamCompleted();
           eventSource?.close();
           break;
@@ -160,12 +163,16 @@ async function onSend(message: string) {
     });
 
     eventSource.addEventListener('end', (event: SSEvent) => {
+      if (ended) return;
+      ended = true;
       console.info('SSE stream ended:', event);
       onStreamCompleted();
       eventSource?.close();
     });
 
     eventSource.addEventListener('error', (event: SSEvent) => {
+      if (ended) return;
+      ended = true;
       console.error('SSE error:', event);
       onStreamFailed();
       eventSource?.close();

@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
 
-use convex::{ConvexClient, Value};
+use convex::Value;
 use serde::Deserialize;
 
 use crate::convex::{Result, convex_mutation, convex_query};
+use crate::setup::ConvexClient;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,7 +22,7 @@ struct ThreadIdOnly {
 }
 
 pub async fn get_by_id(client: &mut ConvexClient, id: String) -> Result<Option<Thread>> {
-  const GET_BY_ID: &str = "threads:getById";
+  const GET_BY_ID: &str = "threads:apiGetById";
 
   convex_query(
     client,

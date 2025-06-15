@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
-use convex::{ConvexClient, Value};
+use convex::Value;
 use serde::{Deserialize, Serialize};
 
-use crate::convex::{convex_mutation, convex_query, Result};
+use crate::convex::{Result, convex_mutation, convex_query};
 use crate::convex_serde::to_map;
+use crate::setup::ConvexClient;
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -31,7 +32,7 @@ struct MessageIdOnly {
 }
 
 pub async fn get_by_id(client: &mut ConvexClient, id: String) -> Result<Option<Message>> {
-  const GET_BY_ID: &str = "messages:getById";
+  const GET_BY_ID: &str = "messages:apiGetById";
 
   convex_query(
     client,
@@ -42,7 +43,7 @@ pub async fn get_by_id(client: &mut ConvexClient, id: String) -> Result<Option<M
 }
 
 pub async fn get_by_thread_id(client: &mut ConvexClient, thread_id: String) -> Result<Vec<Message>> {
-  const GET_BY_THREAD_ID: &str = "messages:getByThreadId";
+  const GET_BY_THREAD_ID: &str = "messages:apiGetByThreadId";
 
   convex_query(
     client,
@@ -68,7 +69,7 @@ pub struct CompleteMessageArgs {
 }
 
 pub async fn complete(client: &mut ConvexClient, args: &CompleteMessageArgs) -> Result<bool> {
-  const COMPLETE_MESSAGE: &str = "messages:complete";
+  const COMPLETE_MESSAGE: &str = "messages:apiComplete";
 
   let result = convex_mutation::<Option<MessageIdOnly>>(client, COMPLETE_MESSAGE, to_map(args)?).await?;
 
@@ -76,7 +77,7 @@ pub async fn complete(client: &mut ConvexClient, args: &CompleteMessageArgs) -> 
 }
 
 pub async fn append_text(client: &mut ConvexClient, message_id: String, text: String) -> Result<bool> {
-  const APPEND_TEXT: &str = "messages:appendText";
+  const APPEND_TEXT: &str = "messages:apiAppendText";
 
   let args = BTreeMap::from([
     ("messageId".to_string(), Value::String(message_id)),
@@ -89,11 +90,9 @@ pub async fn append_text(client: &mut ConvexClient, message_id: String, text: St
 }
 
 pub async fn cancel(client: &mut ConvexClient, message_id: String) -> Result<bool> {
-  const CANCEL_MESSAGE: &str = "messages:cancel";
+  const CANCEL_MESSAGE: &str = "messages:apiCancel";
 
-  let args = BTreeMap::from([
-    ("messageId".to_string(), Value::String(message_id)),
-  ]);
+  let args = BTreeMap::from([("messageId".to_string(), Value::String(message_id))]);
 
   let result = convex_mutation::<Option<MessageIdOnly>>(client, CANCEL_MESSAGE, args).await?;
 

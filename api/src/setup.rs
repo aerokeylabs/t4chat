@@ -1,10 +1,9 @@
 use anyhow::Context;
 use axum::http::header::AUTHORIZATION;
 use axum::http::{HeaderMap, HeaderValue};
-use convex::ConvexClient;
 use openai_api_rs::v1::api::OpenAIClient;
 use reqwest::{Client, Method, RequestBuilder, Url};
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, SecretString};
 use snowflake::SnowflakeGenerator;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
@@ -12,6 +11,12 @@ use tower_http::cors::CorsLayer;
 use crate::config::{Config, EPOCH_MS, OpenrouterConfig};
 use crate::prelude::*;
 use crate::routes::{RouteInfo, Router, print_routes, router};
+
+#[derive(Clone)]
+pub struct ConvexClient {
+  pub client: convex::ConvexClient,
+  pub api_key: SecretString,
+}
 
 pub struct OpenrouterClient {
   pub base_url: Url,
@@ -64,9 +69,14 @@ fn create_openrouter_client(config: &OpenrouterConfig) -> anyhow::Result<Openrou
 }
 
 async fn create_convex_client(config: &Config) -> anyhow::Result<ConvexClient> {
-  ConvexClient::new(&config.convex.url)
+  let client = convex::ConvexClient::new(&config.convex.url)
     .await
-    .context("failed to create Convex client")
+    .context("failed to create Convex client")?;
+
+  Ok(ConvexClient {
+    client,
+    api_key: config.convex.api_key.clone(),
+  })
 }
 
 pub struct Application {

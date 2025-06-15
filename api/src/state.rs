@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use convex::ConvexClient;
 use snowflake::SnowflakeGenerator;
 use tokio::sync::{Mutex, mpsc};
 
-use crate::setup::OpenrouterClient;
+use crate::setup::{ConvexClient, OpenrouterClient};
 
 #[derive(Clone)]
 pub struct AppState {

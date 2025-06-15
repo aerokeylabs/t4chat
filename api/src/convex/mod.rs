@@ -3,10 +3,12 @@ pub mod threads;
 
 use std::collections::BTreeMap;
 
-use convex::{ConvexClient, FunctionResult, Value};
+use convex::{FunctionResult, Value};
+use secrecy::{ExposeSecret, SecretString};
 use serde::de::DeserializeOwned;
 
 use crate::convex_serde;
+use crate::setup::ConvexClient;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConvexError {
@@ -33,20 +35,28 @@ fn parse_result(result: FunctionResult) -> Result<Value> {
   }
 }
 
+const API_KEY: &str = "apiKey";
+
+fn auth_args(api_key: &SecretString, args: &mut BTreeMap<String, Value>) {
+  args.insert(API_KEY.into(), Value::String(api_key.expose_secret().to_string()));
+}
+
 pub async fn convex_query<T: DeserializeOwned>(
-  client: &mut ConvexClient,
+  ConvexClient { client, api_key }: &mut ConvexClient,
   query: &'static str,
-  args: BTreeMap<String, Value>,
+  mut args: BTreeMap<String, Value>,
 ) -> Result<T> {
+  auth_args(api_key, &mut args);
   let value = parse_result(client.query(query, args).await?)?;
   Ok(convex_serde::from_value(value)?)
 }
 
 pub async fn convex_mutation<T: DeserializeOwned>(
-  client: &mut ConvexClient,
+  ConvexClient { client, api_key }: &mut ConvexClient,
   mutation: &'static str,
-  args: BTreeMap<String, Value>,
+  mut args: BTreeMap<String, Value>,
 ) -> Result<T> {
+  auth_args(api_key, &mut args);
   let value = parse_result(client.mutation(mutation, args).await?)?;
   Ok(convex_serde::from_value(value)?)
 }

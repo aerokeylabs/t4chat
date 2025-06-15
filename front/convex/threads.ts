@@ -1,21 +1,41 @@
 import { v } from 'convex/values';
 import { mutation, query } from './_generated/server';
+import { getIdentity, messagePartValidator, modelParamsValidator, validateKey } from './utils';
 
 export const getById = query({
   args: { id: v.id('threads') },
-  handler: async (ctx, args) => {
-    const thread = await ctx.db.get(args.id);
+  handler: async (ctx, { id }) => {
+    const identity = await getIdentity(ctx);
+
+    const thread = await ctx.db.get(id);
+    if (thread?.userId !== identity.tokenIdentifier) return null;
+
+    return thread;
+  },
+});
+
+// api only route
+export const apiGetById = query({
+  args: { apiKey: v.string(), id: v.id('threads') },
+  handler: async (ctx, { apiKey, id }) => {
+    validateKey(apiKey);
+
+    const thread = await ctx.db.get(id);
+
     return thread == null ? null : thread;
   },
 });
 
 export const getThreads = query({
   handler: async (ctx) => {
-    const userId = (await ctx.auth.getUserIdentity())?.tokenIdentifier ?? 'null';
+    const identity = await getIdentity(ctx);
 
-    console.info('getThreads called for userId:', userId);
+    const threads = await ctx.db
+      .query('threads')
+      .withIndex('by_user', (q) => q.eq('userId', identity.tokenIdentifier))
+      .order('desc')
+      .take(256);
 
-    const threads = await ctx.db.query('threads').order('desc').take(100);
     return { threads };
   },
 });
@@ -24,13 +44,14 @@ export const create = mutation({
   args: {
     message: v.string(),
     model: v.string(),
-    modelParams: v.object({
-      includeSearch: v.boolean(),
-      reasoningEffort: v.string(),
-    }),
+    modelParams: modelParamsValidator,
   },
   handler: async (ctx, args) => {
-    const userId = (await ctx.auth.getUserIdentity())?.tokenIdentifier ?? 'null';
+    const identity = await getIdentity(ctx);
+
+    const userId = identity.tokenIdentifier;
+
+    const { message, model, modelParams } = args;
 
     const threadId = await ctx.db.insert('threads', {
       generationStatus: 'pending',
@@ -41,13 +62,13 @@ export const create = mutation({
       title: undefined,
       visibility: 'visible',
       pinned: false,
-      model: args.model,
+      model,
       branchParent: null,
       userId,
     });
 
     await ctx.db.insert('messages', {
-      parts: [{ text: args.message, type: 'text' }],
+      parts: [{ text: message, type: 'text' }],
       role: 'user',
       attachmentIds: [],
       attachments: [],
@@ -63,8 +84,8 @@ export const create = mutation({
       threadId,
       userId,
       status: 'pending',
-      model: args.model,
-      modelParams: args.modelParams,
+      model,
+      modelParams,
     });
 
     return { threadId, assistantMessageId };
@@ -74,25 +95,15 @@ export const create = mutation({
 export const createMessage = mutation({
   args: {
     threadId: v.id('threads'),
-    messageParts: v.array(
-      v.object({
-        type: v.union(v.literal('text')),
-        text: v.string(),
-      }),
-    ),
+    messageParts: v.array(messagePartValidator),
     model: v.string(),
-    modelParams: v.object({
-      includeSearch: v.boolean(),
-      reasoningEffort: v.string(),
-    }),
+    modelParams: modelParamsValidator,
   },
   handler: async (ctx, args) => {
-    const thread = await ctx.db.get(args.threadId);
-    if (thread == null) return null;
+    const identity = await getIdentity(ctx);
 
-    // if (thread.userId !== (await ctx.auth.getUserIdentity())?.tokenIdentifier) {
-    //   throw new Error('You do not have permission to create a message in this thread');
-    // }
+    const thread = await ctx.db.get(args.threadId);
+    if (thread?.userId !== identity.tokenIdentifier) return null;
 
     const threadId = thread._id;
 
@@ -119,7 +130,7 @@ export const createMessage = mutation({
       modelParams: args.modelParams,
     });
 
-    await ctx.db.patch(args.threadId, {
+    await ctx.db.patch(threadId, {
       lastMessageAt: Date.now(),
       updatedAt: Date.now(),
       generationStatus: 'pending',
@@ -134,17 +145,13 @@ export const updateTitle = mutation({
     threadId: v.id('threads'),
     title: v.string(),
   },
-  handler: async (ctx, args) => {
-    const thread = await ctx.db.get(args.threadId);
+  handler: async (ctx, { threadId, title }) => {
+    const identity = await getIdentity(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (thread?.userId !== identity.tokenIdentifier) return null;
 
-    if (thread == null) return null;
-
-    // if (thread.userId !== (await ctx.auth.getUserIdentity())?.tokenIdentifier) {
-    //   throw new Error('You do not have permission to update this thread');
-    // }
-
-    await ctx.db.patch(args.threadId, {
-      title: args.title,
+    await ctx.db.patch(thread._id, {
+      title,
       userSetTitle: true,
     });
 
@@ -152,18 +159,20 @@ export const updateTitle = mutation({
   },
 });
 
+// api only route
 export const apiSetTitle = mutation({
   args: {
+    apiKey: v.string(),
     threadId: v.id('threads'),
     title: v.string(),
   },
-  handler: async (ctx, args) => {
-    const thread = await ctx.db.get(args.threadId);
-
+  handler: async (ctx, { apiKey, threadId, title }) => {
+    validateKey(apiKey);
+    const thread = await ctx.db.get(threadId);
     if (thread == null) return null;
 
-    await ctx.db.patch(args.threadId, {
-      title: args.title,
+    await ctx.db.patch(thread._id, {
+      title,
       userSetTitle: false,
     });
 

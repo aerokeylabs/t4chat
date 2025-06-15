@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Toaster } from '@/components/ui/sonner';
-import { useConvexAuthenticated } from '@/composables/convex';
+import { useConvexAuth } from '@/composables/convex';
 import { RouterView } from 'vue-router';
 
-const isAuthenticated = useConvexAuthenticated();
+const isAuthenticated = useConvexAuth();
 </script>
 
 <template>

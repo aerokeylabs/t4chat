@@ -2,6 +2,10 @@ import { useAuth } from '@clerk/vue';
 import { ConvexClient } from 'convex/browser';
 import { ref, watch, type Plugin } from 'vue';
 
+export const CONVEX_CLIENT_KEY = 'convexClient';
+export const IS_CONVEX_SIGNED_IN_KEY = 'isConvexSignedIn';
+export const IS_CONVEX_LOADING_KEY = 'isConvexLoading';
+
 export const convex: Plugin = {
   install(app, { convexUrl }: { convexUrl: string }) {
     if (!convexUrl) {
@@ -9,14 +13,16 @@ export const convex: Plugin = {
     }
 
     try {
-      const isAuthenticated = ref(false);
+      const isConvexSignedIn = ref(false);
+      const isConvexLoading = ref(true);
       const client = new ConvexClient(convexUrl);
 
       app.runWithContext(() => {
         const { getToken, isSignedIn } = useAuth();
 
-        function onAuthenticated(value?: boolean) {
-          isAuthenticated.value = value ?? false;
+        function onChange(value?: boolean) {
+          isConvexSignedIn.value = value ?? false;
+          isConvexLoading.value = value == null;
 
           if (value) {
             console.info('convex client authenticated');
@@ -27,7 +33,7 @@ export const convex: Plugin = {
 
         function onSignedIn(value?: boolean) {
           if (!value) {
-            client.setAuth(() => Promise.resolve(null), onAuthenticated);
+            client.setAuth(() => Promise.resolve(null), onChange);
             return;
           }
 
@@ -41,14 +47,15 @@ export const convex: Plugin = {
               console.error('error getting auth token:', err);
               return null;
             }
-          }, onAuthenticated);
+          }, onChange);
         }
 
         watch(isSignedIn, (v) => onSignedIn(v), { immediate: true });
       });
 
-      app.provide('convexClient', client);
-      app.provide('isConvexAuthenticated', isAuthenticated);
+      app.provide(CONVEX_CLIENT_KEY, client);
+      app.provide(IS_CONVEX_SIGNED_IN_KEY, isConvexSignedIn);
+      app.provide(IS_CONVEX_LOADING_KEY, isConvexLoading);
     } catch (error) {
       console.error('failed to create convex client:', error);
     }

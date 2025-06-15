@@ -3,7 +3,6 @@ use std::sync::Arc;
 use axum::http::HeaderMap;
 use axum::response::Sse;
 use axum::response::sse::Event;
-use convex::ConvexClient;
 use futures::{Stream, StreamExt, pin_mut};
 use openai_api_rs::v1::chat_completion::{ChatCompletionMessage, ChatCompletionRequest, Content, MessageRole};
 use reqwest::{Method, RequestBuilder};
@@ -16,7 +15,7 @@ use crate::convex::threads::Thread;
 use crate::convex::{ConvexError, messages, threads};
 use crate::openai::{ChatCompletion, ChatDelta};
 use crate::prelude::*;
-use crate::setup::{OpenrouterClient, add_custom_key};
+use crate::setup::{ConvexClient, OpenrouterClient, add_custom_key};
 use crate::{convex_serde, into_response};
 
 #[derive(Debug, Deserialize, Type)]

@@ -1,17 +1,19 @@
+import { CONVEX_CLIENT_KEY, IS_CONVEX_LOADING_KEY, IS_CONVEX_SIGNED_IN_KEY } from '@/plugins/convex';
 import { ConvexClient } from 'convex/browser';
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from 'convex/server';
 import { inject, ref, watch, type Ref } from 'vue';
 
 export function useConvex(): ConvexClient {
-  const client = inject<ConvexClient>('convexClient');
+  const client = inject<ConvexClient>(CONVEX_CLIENT_KEY);
   if (client == null) throw new Error('failed to inject convex');
   return client;
 }
 
-export function useConvexAuthenticated() {
-  const isAuthenticated = inject<Ref<boolean>>('isConvexAuthenticated');
-  if (isAuthenticated == null) throw new Error('failed to inject convex');
-  return isAuthenticated;
+export function useConvexAuth() {
+  const isSignedIn = inject<Ref<boolean>>(IS_CONVEX_SIGNED_IN_KEY);
+  const isLoading = inject<Ref<boolean>>(IS_CONVEX_LOADING_KEY);
+  if (isSignedIn == null || isLoading == null) throw new Error('failed to inject convex');
+  return { isSignedIn, isLoading };
 }
 
 type Query = FunctionReference<'query'>;
@@ -34,9 +36,9 @@ export function useQuery<Q extends Query>(query: Q, args?: QueryArgs<Q>) {
     error.value = err;
   }
 
-  client.onUpdate(query, args, onResult, onError);
+  const unsubscribe = client.onUpdate(query, args, onResult, onError);
 
-  return { data, error };
+  return { data, error, unsubscribe };
 }
 
 export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<QueryArgs<Q>>) {
@@ -74,7 +76,13 @@ export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<Quer
 
   subscribe(maybeArgs?.value);
 
-  return { data, error };
+  return {
+    data,
+    error,
+    unsubscribe: () => {
+      if (unsubscribe != null) unsubscribe();
+    },
+  };
 }
 
 type Mutation = FunctionReference<'mutation'>;

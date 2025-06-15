@@ -103,16 +103,20 @@ impl OpenrouterConfig {
 pub struct ConvexConfig {
   pub url: String,
   pub id: String,
+  pub api_key: SecretString,
 }
 
 impl ConvexConfig {
+  const API_KEY_KEY: &'static str = "CONVEX_API_KEY";
   const DEPLOYMENT_KEY: &'static str = "CONVEX_DEPLOYMENT";
   const URL_KEY: &'static str = "CONVEX_URL";
 
   fn from_env() -> anyhow::Result<Self> {
     let url = get_var(Self::URL_KEY)?;
     let id = get_var(Self::DEPLOYMENT_KEY)?;
+    let api_key = get_var(Self::API_KEY_KEY)?;
+    let api_key = SecretString::from(api_key);
 
-    Ok(Self { url, id })
+    Ok(Self { url, id, api_key })
   }
 }

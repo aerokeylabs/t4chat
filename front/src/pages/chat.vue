@@ -10,7 +10,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { apiPostSse, cancelMessage } from '@/lib/api';
 import { Routes, type CreateMessageRequest } from '@/lib/types';
 import { SSE, type SSEvent } from 'sse.js';
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import { toast } from 'vue-sonner';
 
@@ -29,6 +29,11 @@ const {
   onStreamCancelled,
   onStreamFailed,
   isStreaming,
+  addChunk,
+  setMessagesContainer,
+  scrollToBottom,
+  showScrollToBottomPill,
+  resetScrollState,
 } = useStreamingMessage();
 
 const selected = useSelectedModel();
@@ -41,6 +46,10 @@ async function onSend(message: string) {
     toast.error('Please select a model before sending a message');
     return;
   }
+
+  // Reset scroll state and force scroll to bottom when sending a new message
+  resetScrollState();
+  scrollToBottom(true);
 
   const modelParams = { includeSearch: false, reasoningEffort: 'medium' };
 
@@ -127,7 +136,7 @@ async function onSend(message: string) {
 
       switch (type) {
         case '0': {
-          streamingMessage.value += value.replace(/\\n/g, '\n');
+          addChunk(value);
           break;
         }
         case '1': {
@@ -205,6 +214,12 @@ async function onCancel() {
 }
 
 const chatboxHeight = ref(300);
+const messagesContainer = ref<HTMLElement | null>(null);
+
+// Set the messages container reference for scroll to bottom functionality
+onMounted(() => {
+  setMessagesContainer(messagesContainer.value);
+});
 </script>
 
 <template>
@@ -212,8 +227,18 @@ const chatboxHeight = ref(300);
     <AppSidebar />
 
     <main class="chat">
-      <div class="messages" :style="{ '--chatbox-height': `${chatboxHeight}px` }">
+      <div
+        ref="messagesContainer"
+        class="messages custom-scrollbar"
+        :style="{ '--chatbox-height': `${chatboxHeight}px` }"
+      >
         <RouterView />
+      </div>
+
+      <!-- Scroll to bottom pill -->
+      <div v-if="showScrollToBottomPill" class="scroll-to-bottom-pill" @click="scrollToBottom(true)">
+        <span class="pill-text">Scroll to bottom</span>
+        <span class="pill-icon">↓</span>
       </div>
 
       <div ref="chatbox-container" class="chatbox-container">
@@ -224,6 +249,54 @@ const chatboxHeight = ref(300);
 </template>
 
 <style>
+:root {
+  --chatbox-spacing: calc(var(--spacing) * 4);
+  --scrollbar-width: 8px;
+  --scrollbar-track: rgba(0, 0, 0, 0.05);
+  --scrollbar-thumb: color-mix(in oklab, var(--secondary) 50%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--secondary) 70%, transparent);
+}
+
+/* Global custom scrollbar style */
+.custom-scrollbar {
+  /* Modern Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+    height: var(--scrollbar-width);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+    backdrop-filter: blur(10px);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+}
+
+@keyframes popIn {
+  0% {
+    transform: translateX(-50%) scale(0.95);
+  }
+  60% {
+    transform: translateX(-50%) scale(1.05);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+}
+
 .chat {
   position: relative;
   display: flex;
@@ -258,7 +331,8 @@ const chatboxHeight = ref(300);
   padding-top: calc(var(--spacing) * 32);
   padding-bottom: var(--chatbox-height);
 
-  scrollbar-width: thin;
+  /* Add custom scrollbar */
+  @extend .custom-scrollbar;
 
   > section {
     width: 100%;
@@ -297,6 +371,58 @@ const chatboxHeight = ref(300);
     will-change: opacity;
 
     background-color: color-mix(in oklab, var(--secondary) 30%, transparent);
+  }
+}
+
+.scroll-to-bottom-pill {
+  position: absolute;
+  bottom: calc(var(--spacing) * 42);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+
+  /* Animation properties */
+  animation: popIn 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--spacing) * 1.5);
+  padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 3);
+
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.2s;
+
+  /* Match chatbox style with backdrop filter */
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: -1;
+    border-radius: inherit;
+    backdrop-filter: blur(18px) saturate(1.5);
+    background-color: color-mix(in oklab, var(--secondary) 30%, transparent);
+  }
+
+  &:hover {
+    transform: translateX(-50%) scale(1.05);
+  }
+
+  .pill-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-accent-foreground);
+  }
+
+  .pill-icon {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--text-accent-foreground);
   }
 }
 </style>

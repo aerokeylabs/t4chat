@@ -42,6 +42,10 @@ function runCommand(command: string) {
     router.push(command);
   }
 
+  if (command === 'new-chat') {
+    router.push('/chat');
+  }
+
   // Close the command dialog
   open.value = false;
 }

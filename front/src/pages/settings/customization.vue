@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { TagsInput, TagsInputItem, TagsInputItemDelete, TagsInputItemText, TagsInputInput } from '@/components/ui/tags-input';
+import {
+  TagsInput,
+  TagsInputItem,
+  TagsInputItemDelete,
+  TagsInputItemText,
+  TagsInputInput,
+} from '@/components/ui/tags-input';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,12 +29,11 @@ const useCustomizationStore = defineStore('customization', () => {
     userTraits,
     hidePersonalInfo,
     mainFont,
-    codeFont
+    codeFont,
   };
 });
 
 const customization = useCustomizationStore();
-
 
 const mainFontOptions = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat'];
 const codeFontOptions = ['Fira Code', 'JetBrains Mono', 'Source Code Pro', 'Hack', 'Consolas'];
@@ -45,7 +50,7 @@ const presetTraits = ['friendly', 'witty', 'concise', 'curious', 'empathetic', '
       <h1 class="text-2xl font-bold">Customization</h1>
       <p class="text-muted-foreground">Personalize your T4Chat experience.</p>
     </div>
-    
+
     <!-- Main content -->
     <div class="space-y-6">
       <!-- Personal Information section -->
@@ -54,55 +59,43 @@ const presetTraits = ['friendly', 'witty', 'concise', 'curious', 'empathetic', '
         <div class="mt-4 space-y-4">
           <div class="space-y-2">
             <Label for="username">What should T4 Chat call you?</Label>
-            <Input 
-              id="username" 
-              v-model="customization.userName" 
-              placeholder="Enter your name"
-              class="max-w-sm"
-            />
+            <Input id="username" v-model="customization.userName" placeholder="Enter your name" class="max-w-sm" />
           </div>
-          
+
           <div class="space-y-2">
             <Label for="occupation">What do you do?</Label>
-            <Input 
-              id="occupation" 
-              v-model="customization.userOccupation" 
+            <Input
+              id="occupation"
+              v-model="customization.userOccupation"
               placeholder="Engineer, student, etc."
               class="max-w-sm"
             />
           </div>
         </div>
       </div>
-      
+
       <!-- Traits section -->
       <div>
         <h2 class="text-xl font-semibold">T4Chat Traits</h2>
-        <p class="text-sm text-muted-foreground">What traits should T4Chat have?</p>
-        
+        <p class="text-muted-foreground text-sm">What traits should T4Chat have?</p>
+
         <div class="mt-4 flex flex-col gap-4">
           <div>
-            <p class="text-sm text-muted-foreground mb-2">Add traits:</p>
-            <TagsInput 
-              v-model="customization.userTraits" 
-              class="max-w-md"
-            >
-              <TagsInputItem 
-                v-for="trait in customization.userTraits" 
-                :key="trait" 
-                :value="trait"
-              >
+            <p class="text-muted-foreground mb-2 text-sm">Add traits:</p>
+            <TagsInput v-model="customization.userTraits" class="max-w-md">
+              <TagsInputItem v-for="trait in customization.userTraits" :key="trait" :value="trait">
                 <TagsInputItemText />
                 <TagsInputItemDelete />
               </TagsInputItem>
               <TagsInputInput placeholder="Type and press Enter" />
             </TagsInput>
           </div>
-          
+
           <div class="mt-4">
-            <p class="text-sm text-muted-foreground mb-2">Preset traits:</p>
+            <p class="text-muted-foreground mb-2 text-sm">Preset traits:</p>
             <div class="flex flex-wrap gap-2">
-              <Button 
-                v-for="trait in presetTraits.filter(t => !customization.userTraits.includes(t))" 
+              <Button
+                v-for="trait in presetTraits.filter((t) => !customization.userTraits.includes(t))"
                 :key="trait"
                 variant="outline"
                 size="sm"
@@ -110,27 +103,27 @@ const presetTraits = ['friendly', 'witty', 'concise', 'curious', 'empathetic', '
               >
                 {{ trait }}
               </Button>
-              <span v-if="presetTraits.every(t => customization.userTraits.includes(t))" class="text-sm text-muted-foreground">
+              <span
+                v-if="presetTraits.every((t) => customization.userTraits.includes(t))"
+                class="text-muted-foreground text-sm"
+              >
                 All preset traits added.
               </span>
             </div>
           </div>
         </div>
       </div>
-      
+
       <!-- Visual Options section -->
       <div>
         <h2 class="text-xl font-semibold">Visual Options</h2>
-        
+
         <div class="mt-4 space-y-4">
           <div class="flex items-center justify-between">
             <Label for="hidePersonalInfo" class="cursor-pointer">Hide Personal Information</Label>
-            <Switch 
-              id="hidePersonalInfo" 
-              v-model:checked="customization.hidePersonalInfo"
-            />
+            <Switch id="hidePersonalInfo" v-model:checked="customization.hidePersonalInfo" />
           </div>
-          
+
           <div class="space-y-2">
             <Label for="mainFont">Main Font</Label>
             <Select v-model="customization.mainFont">
@@ -144,7 +137,7 @@ const presetTraits = ['friendly', 'witty', 'concise', 'curious', 'empathetic', '
               </SelectContent>
             </Select>
           </div>
-          
+
           <div class="space-y-2">
             <Label for="codeFont">Code Font</Label>
             <Select v-model="customization.codeFont">

@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useLocalStorage } from '@vueuse/core';
@@ -19,34 +27,34 @@ interface Attachment {
 const useAttachmentsStore = defineStore('attachments', () => {
   // Initial state will be empty - this is just for demo
   const attachments = useLocalStorage<Attachment[]>('attachments_list', [
-    { 
-      id: '1', 
-      filename: 'document.pdf', 
-      size: 2500000, 
+    {
+      id: '1',
+      filename: 'document.pdf',
+      size: 2500000,
       type: 'application/pdf',
       dateUploaded: '2025-06-10',
-      url: '#'
+      url: '#',
     },
-    { 
-      id: '2', 
-      filename: 'image.png', 
-      size: 1200000, 
+    {
+      id: '2',
+      filename: 'image.png',
+      size: 1200000,
       type: 'image/png',
       dateUploaded: '2025-06-12',
-      url: '#'
+      url: '#',
     },
-    { 
-      id: '3', 
-      filename: 'data.csv', 
-      size: 500000, 
+    {
+      id: '3',
+      filename: 'data.csv',
+      size: 500000,
       type: 'text/csv',
       dateUploaded: '2025-06-14',
-      url: '#'
+      url: '#',
     },
   ]);
 
   function deleteAttachment(id: string) {
-    const index = attachments.value.findIndex(att => att.id === id);
+    const index = attachments.value.findIndex((att) => att.id === id);
     if (index !== -1) {
       attachments.value.splice(index, 1);
     }
@@ -59,7 +67,7 @@ const useAttachmentsStore = defineStore('attachments', () => {
   return {
     attachments,
     deleteAttachment,
-    deleteAllAttachments
+    deleteAllAttachments,
   };
 });
 
@@ -70,11 +78,11 @@ const showDeleteAllDialog = ref(false);
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
@@ -92,33 +100,32 @@ function getFileIcon(type: string): string {
       <h1 class="text-2xl font-bold">Attachments</h1>
       <p class="text-muted-foreground">View and manage files you've uploaded during chats.</p>
     </div>
-    
-    <div class="border rounded-lg p-6">
-      <div class="flex items-center justify-between mb-6">
+
+    <div class="rounded-lg border p-6">
+      <div class="mb-6 flex items-center justify-between">
         <h2 class="text-xl font-semibold">Your Attachments</h2>
-        
+
         <Dialog v-model:open="showDeleteAllDialog" v-if="attachmentsStore.attachments.length > 0">
           <DialogTrigger asChild>
-            <Button variant="destructive" size="sm">
-              Delete All Attachments
-            </Button>
+            <Button variant="destructive" size="sm"> Delete All Attachments </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Delete All Attachments?</DialogTitle>
               <DialogDescription>
-                This will permanently delete all your uploaded files.
-                This action cannot be undone.
+                This will permanently delete all your uploaded files. This action cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" @click="showDeleteAllDialog = false">Cancel</Button>
-              <Button 
-                variant="destructive" 
-                @click="() => {
-                  attachmentsStore.deleteAllAttachments();
-                  showDeleteAllDialog = false;
-                }"
+              <Button
+                variant="destructive"
+                @click="
+                  () => {
+                    attachmentsStore.deleteAllAttachments();
+                    showDeleteAllDialog = false;
+                  }
+                "
               >
                 Delete All
               </Button>
@@ -126,11 +133,11 @@ function getFileIcon(type: string): string {
           </DialogContent>
         </Dialog>
       </div>
-      
-      <div v-if="attachmentsStore.attachments.length === 0" class="text-center py-12">
+
+      <div v-if="attachmentsStore.attachments.length === 0" class="py-12 text-center">
         <p class="text-muted-foreground">No attachments found.</p>
       </div>
-      
+
       <div v-else class="grid gap-4">
         <Card v-for="attachment in attachmentsStore.attachments" :key="attachment.id" class="overflow-hidden">
           <CardContent class="p-4">
@@ -141,45 +148,40 @@ function getFileIcon(type: string): string {
                 </div>
                 <div>
                   <h3 class="font-medium">{{ attachment.filename }}</h3>
-                  <p class="text-sm text-muted-foreground">
+                  <p class="text-muted-foreground text-sm">
                     {{ formatFileSize(attachment.size) }} · {{ attachment.dateUploaded }}
                   </p>
                 </div>
               </div>
-              
+
               <div class="flex gap-2">
                 <Button variant="outline" size="sm" asChild>
                   <a :href="attachment.url" download>Download</a>
                 </Button>
-                
+
                 <Dialog v-model:open="showDeleteDialog">
                   <DialogTrigger asChild>
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      @click="selectedAttachment = attachment"
-                    >
-                      Delete
-                    </Button>
+                    <Button variant="destructive" size="sm" @click="selectedAttachment = attachment"> Delete </Button>
                   </DialogTrigger>
                   <DialogContent v-if="selectedAttachment">
                     <DialogHeader>
                       <DialogTitle>Delete Attachment?</DialogTitle>
                       <DialogDescription>
-                        Are you sure you want to delete {{ selectedAttachment.filename }}?
-                        This action cannot be undone.
+                        Are you sure you want to delete {{ selectedAttachment.filename }}? This action cannot be undone.
                       </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                       <Button variant="outline" @click="showDeleteDialog = false">Cancel</Button>
-                      <Button 
-                        variant="destructive" 
-                        @click="() => {
-                          if (selectedAttachment) {
-                            attachmentsStore.deleteAttachment(selectedAttachment.id);
-                            showDeleteDialog = false;
+                      <Button
+                        variant="destructive"
+                        @click="
+                          () => {
+                            if (selectedAttachment) {
+                              attachmentsStore.deleteAttachment(selectedAttachment.id);
+                              showDeleteDialog = false;
+                            }
                           }
-                        }"
+                        "
                       >
                         Delete
                       </Button>

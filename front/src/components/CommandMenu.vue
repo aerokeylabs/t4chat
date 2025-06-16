@@ -8,7 +8,7 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
-  CommandList
+  CommandList,
 } from '@/components/ui/command';
 
 // State for command dialog visibility
@@ -63,12 +63,7 @@ onUnmounted(() => {
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Navigation">
-          <CommandItem
-            v-for="page in pages"
-            :key="page.path"
-            :value="page.path"
-            @select="() => runCommand(page.path)"
-          >
+          <CommandItem v-for="page in pages" :key="page.path" :value="page.path" @select="() => runCommand(page.path)">
             <span>{{ page.name }}</span>
           </CommandItem>
         </CommandGroup>

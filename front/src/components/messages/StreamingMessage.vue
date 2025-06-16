@@ -8,7 +8,7 @@ defineProps<{
 </script>
 
 <template>
-  <div class="text-primary-foreground relative mb-12 bg-red-400/50">
+  <div class="text-primary-foreground relative mb-12">
     <div v-if="error != null" class="text-muted-foreground mb-2 px-4 pt-2 italic">{{ error }}</div>
     <Prose v-else :source="message" />
   </div>

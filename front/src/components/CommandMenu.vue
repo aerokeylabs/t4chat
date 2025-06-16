@@ -28,9 +28,7 @@ const pages = [
   { name: 'Attachments', path: '/settings/attachments' },
 ];
 
-// Handle keyboard shortcut (Ctrl+K)
 function onKeyDown(e: KeyboardEvent) {
-  // Check for Ctrl+K or Cmd+K (Mac)
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
     open.value = !open.value;

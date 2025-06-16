@@ -3,6 +3,7 @@ import AppSidebar from '@/components/AppSidebar.vue';
 import Chatbox from '@/components/Chatbox.vue';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { useMutation } from '@/composables/convex';
+import { useSelectedModel } from '@/composables/selectedModel';
 import { useStreamingMessage } from '@/composables/streamingMessage';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -30,11 +31,17 @@ const {
   isStreaming,
 } = useStreamingMessage();
 
-const model = ref('');
+const selected = useSelectedModel();
 
 let eventSource: SSE | null = null;
 
 async function onSend(message: string) {
+  if (selected.model == null) {
+    console.warn('No model selected, cannot send message');
+    toast.error('Please select a model before sending a message');
+    return;
+  }
+
   const modelParams = { includeSearch: false, reasoningEffort: 'medium' };
 
   let activeThreadId: string;
@@ -62,7 +69,7 @@ async function onSend(message: string) {
       const result = await createMessageMutation({
         threadId: threadId.value as Id<'threads'>,
         messageParts: [{ type: 'text', text: message }],
-        model: model.value,
+        model: selected.model.slug,
         modelParams,
       });
 
@@ -77,7 +84,7 @@ async function onSend(message: string) {
         threadId: threadId.value,
         responseMessageId: result.assistantMessageId,
         messageParts: [{ type: 'text', text: message }],
-        model: model.value,
+        model: selected.model.id,
         modelParams,
       });
 
@@ -85,7 +92,7 @@ async function onSend(message: string) {
     } else {
       console.debug('create new thread with content', message);
 
-      const thread = await createThreadMutation({ model: model.value, modelParams, message });
+      const thread = await createThreadMutation({ model: selected.model.slug, modelParams, message });
 
       console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
 
@@ -95,7 +102,7 @@ async function onSend(message: string) {
         threadId: thread.threadId,
         responseMessageId: thread.assistantMessageId,
         messageParts: [{ type: 'text', text: message }],
-        model: model.value,
+        model: selected.model.id,
         modelParams,
       });
 
@@ -120,7 +127,7 @@ async function onSend(message: string) {
 
       switch (type) {
         case '0': {
-          streamingMessage.value += value;
+          streamingMessage.value += value.replace(/\\n/g, '\n');
           break;
         }
         case '1': {
@@ -197,10 +204,6 @@ async function onCancel() {
   }
 }
 
-function onSelectModel(modelId: string) {
-  model.value = modelId;
-}
-
 const chatboxHeight = ref(300);
 </script>
 
@@ -214,7 +217,7 @@ const chatboxHeight = ref(300);
       </div>
 
       <div ref="chatbox-container" class="chatbox-container">
-        <Chatbox @send="onSend" @cancel="onCancel" @select-model="onSelectModel" />
+        <Chatbox @send="onSend" @cancel="onCancel" />
       </div>
     </main>
   </SidebarProvider>

@@ -1,30 +1,17 @@
 <script setup lang="ts">
-import IconInput from '@/components/IconInput.vue';
+import ModelSelect from '@/components/ModelSelect.vue';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useChatbox } from '@/composables/chatbox';
+import { useSelectedModel } from '@/composables/selectedModel';
 import { useStreamingMessage } from '@/composables/streamingMessage';
-import { MODELS, type ModelId } from '@/lib/models';
+import { type ModelId } from '@/lib/models';
+import { displayModelName } from '@/lib/utils';
 import { useEventListener } from '@vueuse/core';
-import { ChevronDownIcon, GlobeIcon, PaperclipIcon, SearchIcon, SendIcon, StopCircleIcon } from 'lucide-vue-next';
+import { ChevronDownIcon, GlobeIcon, PaperclipIcon, SendIcon, StopCircleIcon } from 'lucide-vue-next';
 import { computed, nextTick, ref, useTemplateRef } from 'vue';
 
-const FEATURED_MODEL_IDS: ModelId[] = [
-  'openai/gpt-4o-mini',
-  'google/gemini-2.0-flash-001',
-  'anthropic/claude-3.7-sonnet',
-  'google/gemini-2.5-pro-preview-05-06',
-  'google/gemini-2.5-flash-preview',
-  'anthropic/claude-sonnet-4',
-  'deepseek/deepseek-chat-v3-0324:free',
-  'deepseek/deepseek-chat-v3-0324',
-  'google/gemini-2.5-flash-preview-05-20',
-  'openai/gpt-4.1',
-];
-
-const FEATURED_MODELS = FEATURED_MODEL_IDS.map((modelId) => MODELS.get(modelId)!);
-
-const model = ref(FEATURED_MODELS[0].id);
+const selected = useSelectedModel();
 
 const emit = defineEmits<{
   (e: 'send', message: string): void;
@@ -71,19 +58,7 @@ function updateTextareaHeight() {
 
 useEventListener(textarea, 'input', updateTextareaHeight);
 
-// text after first :
-function displayModelName(name: string) {
-  const colonIndex = name.indexOf(':');
-  return colonIndex !== -1 ? name.slice(colonIndex + 1).trim() : name;
-}
-
 const selectModelOpen = ref(false);
-
-function selectModel(id: ModelId) {
-  selectModelOpen.value = false;
-  model.value = id;
-  emit('select-model', id);
-}
 
 function cancel() {
   emit('cancel');
@@ -99,27 +74,12 @@ function cancel() {
         <Popover v-model:open="selectModelOpen">
           <PopoverTrigger class="w-full">
             <Button variant="ghost" class="flex items-center pl-2 pr-1">
-              <span>{{ displayModelName(FEATURED_MODELS.find((m) => m.id === model)?.name || '') }}</span>
+              <span>{{ displayModelName(selected.model?.name ?? '') }}</span>
               <ChevronDownIcon class="mt-0.5 size-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent class="flex w-96 flex-col gap-2 p-2" align="start">
-            <IconInput class="w-full" type="text" placeholder="Search models...">
-              <SearchIcon />
-            </IconInput>
-
-            <div class="flex flex-col gap-2">
-              <template v-for="m in FEATURED_MODELS" :key="m.id">
-                <Button
-                  variant="ghost"
-                  class="w-full justify-start"
-                  :class="{ 'bg-secondary': model === m.id }"
-                  @click="selectModel(m.id)"
-                >
-                  {{ displayModelName(m.name) }}
-                </Button>
-              </template>
-            </div>
+          <PopoverContent class="flex w-min flex-col gap-2 p-2" align="start">
+            <ModelSelect />
           </PopoverContent>
         </Popover>
 

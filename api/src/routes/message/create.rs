@@ -15,7 +15,7 @@ use crate::convex::threads::Thread;
 use crate::convex::{ConvexClient, ConvexError, messages, threads};
 use crate::convex_serde;
 use crate::openai::{ChatCompletion, ChatDelta};
-use crate::openrouter::{OpenrouterClient, add_custom_key};
+use crate::openrouter::OpenrouterClient;
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize, Type)]
@@ -57,6 +57,10 @@ pub enum CreateMessageError {
   Serialization(#[from] convex_serde::SerError),
   #[error("failed to get response message: {0}")]
   Convex(#[from] ConvexError),
+  #[error("empty message parts")]
+  EmptyMessageParts,
+  #[error("no model specified")]
+  NoModelSpecified,
 }
 
 into_response!(
@@ -64,6 +68,8 @@ into_response!(
     MessageNotFound => StatusCode::NOT_FOUND,
     ThreadNotFound => StatusCode::NOT_FOUND,
     ResponseMessageNotPending => StatusCode::BAD_REQUEST,
+    EmptyMessageParts => StatusCode::BAD_REQUEST,
+    NoModelSpecified => StatusCode::BAD_REQUEST,
     Unexpected(_) => StatusCode::INTERNAL_SERVER_ERROR,
     Serialization(_) => StatusCode::INTERNAL_SERVER_ERROR,
     Convex(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -97,9 +103,16 @@ async fn stream_openrouter_chat(
     for await value in source {
       match value {
         Ok(EventSourceEvent::Message(data)) => {
-          let text = data.data;
-          info!("Received text: {text}");
-          match serde_json::from_str(&text) {
+          if data.data == "[DONE]" || data.data.is_empty() {
+            continue;
+          }
+
+          if !data.data.starts_with("{") {
+            warn!("Received non-JSON data from OpenRouter: {}", data.data);
+            continue;
+          }
+
+          match serde_json::from_str(&data.data) {
             Ok(parsed) => yield OpenrouterEvent::Completion(parsed),
             Err(err) => {
               error!("Failed to parse OpenRouter response: {err:?}");
@@ -109,6 +122,16 @@ async fn stream_openrouter_chat(
         },
         Err(EventSourceError::InvalidStatusCode(StatusCode::UNAUTHORIZED, _)) if using_custom_key => {
           yield OpenrouterEvent::Unauthorized;
+        },
+        Err(EventSourceError::InvalidStatusCode(_, response)) => {
+          let body = response.text().await.unwrap_or_else(|_| "No body".to_string());
+          error!("Invalid status code in OpenRouter response: {body:?}");
+          yield OpenrouterEvent::Error;
+        },
+        Err(EventSourceError::InvalidContentType(_, response)) => {
+          let body = response.text().await.unwrap_or_else(|_| "No body".to_string());
+          error!("Invalid content type in OpenRouter response: {body:?}");
+          yield OpenrouterEvent::Error;
         },
         Err(err) => {
           error!("Stream error: {err:?}");
@@ -171,10 +194,8 @@ async fn stream_chat(
   mut kill_rx: mpsc::Receiver<()>,
   context: ChatContext,
 ) -> Result<(), StreamChatError> {
-  let openrouter = openrouter.lock().await;
-
   let request = ChatCompletionRequest::new(
-    context.model.clone(),
+    context.model,
     vec![ChatCompletionMessage {
       role: MessageRole::user,
       content: Content::Text(context.user_message),
@@ -184,15 +205,15 @@ async fn stream_chat(
     }],
   )
   .stream(true)
-  .max_tokens(500)
+  // .max_tokens(500)
   .temperature(0.7);
 
-  let request = openrouter
-    .request_builder(Method::POST, "chat/completions")?
-    .json(&request);
+  let openrouter = openrouter.lock().await;
 
   let using_custom_key = context.custom_key.is_some();
-  let request = add_custom_key(context.custom_key, request);
+  let request = openrouter
+    .request_builder(Method::POST, "chat/completions", context.custom_key)?
+    .json(&request);
 
   drop(openrouter);
 
@@ -320,7 +341,31 @@ pub async fn create_message(
   headers: HeaderMap,
   Json(payload): Json<CreateMessageRequest>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, CreateMessageError>>>, CreateMessageError> {
-  info!("creating chat with payload: {:?}", payload);
+  debug!("creating chat with payload: {:?}", payload);
+
+  let message_id = payload.response_message_id.trim();
+  if message_id.is_empty() {
+    return Err(CreateMessageError::MessageNotFound);
+  }
+
+  let thread_id = payload.thread_id.trim();
+  if thread_id.is_empty() {
+    return Err(CreateMessageError::ThreadNotFound);
+  }
+
+  let response_message_id = payload.response_message_id.trim();
+  if response_message_id.is_empty() {
+    return Err(CreateMessageError::MessageNotFound);
+  }
+
+  if payload.message_parts.is_empty() {
+    return Err(CreateMessageError::EmptyMessageParts);
+  }
+
+  let model = payload.model.trim();
+  if model.is_empty() {
+    return Err(CreateMessageError::NoModelSpecified);
+  }
 
   let custom_key = headers
     .get("X-OpenRouter-Key")
@@ -329,19 +374,17 @@ pub async fn create_message(
 
   let mut convex = state.convex.clone();
 
-  let Some(thread) = threads::get_by_id(&mut convex, payload.thread_id).await? else {
+  let Some(thread) = threads::get_by_id(&mut convex, thread_id.to_string()).await? else {
     return Err(CreateMessageError::ThreadNotFound);
   };
 
-  let Some(message) = messages::get_by_id(&mut convex, payload.response_message_id).await? else {
+  let Some(message) = messages::get_by_id(&mut convex, response_message_id.to_string()).await? else {
     return Err(CreateMessageError::MessageNotFound);
   };
 
   if message.status != MessageStatus::Pending {
     return Err(CreateMessageError::ResponseMessageNotPending);
   }
-
-  info!("response message: {:?}", message);
 
   let complete_args = CompleteMessageArgs {
     message_id: message.id.clone(),
@@ -374,7 +417,7 @@ pub async fn create_message(
   let thread_id = thread.id.clone();
 
   let context = ChatContext {
-    model: payload.model,
+    model: model.to_string(),
     message,
     thread,
     complete_args,

@@ -38,6 +38,7 @@ const modelValue = useVModel(props, 'modelValue', emits, {
   align-items: center;
 
   > input {
+    width: 100%;
     padding-left: calc(var(--spacing) * 7);
   }
 

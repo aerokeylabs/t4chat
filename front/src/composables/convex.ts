@@ -41,7 +41,7 @@ export function useQuery<Q extends Query>(query: Q, args?: QueryArgs<Q>) {
   return { data, error, unsubscribe };
 }
 
-export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<QueryArgs<Q>>) {
+export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<QueryArgs<Q>>, enable?: Ref<boolean>) {
   const client = useConvex();
 
   const data = ref<QueryResult<Q> | null>(null);
@@ -72,6 +72,16 @@ export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<Quer
 
   if (maybeArgs) {
     watch(maybeArgs, subscribe);
+  }
+
+  if (enable != null) {
+    watch(enable, (enabled) => {
+      if (enabled) {
+        if (unsubscribe == null) subscribe(maybeArgs?.value);
+      } else {
+        if (unsubscribe != null) unsubscribe();
+      }
+    });
   }
 
   subscribe(maybeArgs?.value);

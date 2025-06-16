@@ -19,7 +19,7 @@ pub struct ConvexClient {
 }
 
 pub async fn create_convex_client(config: &ConvexConfig) -> anyhow::Result<ConvexClient> {
-  let client = convex::ConvexClient::new(&config.url)
+  let client = convex::ConvexClient::new(config.url.as_ref())
     .await
     .context("failed to create Convex client")?;
 

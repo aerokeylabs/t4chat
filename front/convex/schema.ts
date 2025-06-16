@@ -72,9 +72,12 @@ export default defineSchema({
     image: v.boolean(),
     reasoning: v.boolean(),
     speed: v.float64(),
+
+    featured: v.optional(v.boolean()),
   })
     .searchIndex('by_name', {
       searchField: 'name',
     })
-    .index('by_slug', ['slug']),
+    .index('by_slug', ['slug'])
+    .index('by_featured', ['featured']),
 });

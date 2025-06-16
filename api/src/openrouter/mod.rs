@@ -7,6 +7,7 @@ use secrecy::ExposeSecret;
 
 use crate::config::OpenrouterConfig;
 use crate::openrouter::types::ListModelsResponse;
+use crate::prelude::*;
 
 pub mod types;
 
@@ -28,8 +29,21 @@ pub enum OpenrouterError {
 }
 
 impl OpenrouterClient {
-  pub fn request_builder(&self, method: Method, path: &str) -> anyhow::Result<RequestBuilder> {
-    Ok(self.http.request(method, self.base_url.join(path)?))
+  pub fn request_builder(
+    &self,
+    method: Method,
+    path: &str,
+    custom_key: Option<String>,
+  ) -> anyhow::Result<RequestBuilder> {
+    let client = if let Some(custom_key) = custom_key {
+      &create_http_client(&custom_key).context("failed to create HTTP client with custom API key")?
+    } else {
+      &self.http
+    };
+
+    let builder = client.request(method, self.base_url.join(path)?);
+
+    Ok(builder)
   }
 
   fn model_request_builder(&self, method: Method, path: &str) -> anyhow::Result<RequestBuilder> {
@@ -53,17 +67,16 @@ impl OpenrouterClient {
   }
 }
 
-pub fn add_custom_key(key: Option<String>, builder: RequestBuilder) -> RequestBuilder {
-  if let Some(key) = key {
-    let builder = builder.header(AUTHORIZATION, format!("Bearer {key}"));
+pub fn create_http_client(api_key: &str) -> anyhow::Result<Client> {
+  let mut headers = HeaderMap::new();
+  #[cfg(debug_assertions)]
+  headers.insert("api-key", HeaderValue::from_str(api_key)?);
+  headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {api_key}"))?);
 
-    #[cfg(debug_assertions)]
-    let builder = builder.header("api-key", key);
-
-    builder
-  } else {
-    builder
-  }
+  Client::builder()
+    .default_headers(headers)
+    .build()
+    .context("failed to create HTTP client")
 }
 
 pub fn create_openrouter_client(config: &OpenrouterConfig) -> anyhow::Result<OpenrouterClient> {
@@ -78,14 +91,7 @@ pub fn create_openrouter_client(config: &OpenrouterConfig) -> anyhow::Result<Ope
     .build()
     .unwrap();
 
-  let mut headers = HeaderMap::new();
-  headers.insert("api-key", HeaderValue::from_str(api_key)?);
-  headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {api_key}"))?);
-
-  let http = Client::builder()
-    .default_headers(headers)
-    .build()
-    .context("failed to create HTTP client")?;
+  let http = create_http_client(api_key).context("failed to create HTTP client for Openrouter")?;
 
   Ok(OpenrouterClient {
     base_url: config.api_url.clone(),

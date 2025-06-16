@@ -1,8 +1,47 @@
 import { ConvexError, v } from 'convex/values';
 import type { ModelResponse } from '../src/lib/types/generated';
 import { internal } from './_generated/api';
-import { internalAction, internalMutation } from './_generated/server';
+import { internalAction, internalMutation, query } from './_generated/server';
 import { getApiKey, getApiUrl } from './utils';
+
+export const getBySlug = query({
+  args: {
+    slug: v.string(),
+  },
+  async handler(ctx, { slug }) {
+    const model = await ctx.db
+      .query('models')
+      .withIndex('by_slug', (q) => q.eq('slug', slug))
+      .first();
+
+    return model ?? null;
+  },
+});
+
+export const search = query({
+  args: {
+    query: v.string(),
+  },
+  async handler(ctx, { query }) {
+    const models = await ctx.db
+      .query('models')
+      .withSearchIndex('by_name', (q) => q.search('name', query))
+      .collect();
+
+    return { models };
+  },
+});
+
+export const getFeatured = query({
+  async handler(ctx) {
+    const models = await ctx.db
+      .query('models')
+      .withIndex('by_featured', (q) => q.eq('featured', true))
+      .collect();
+
+    return { models };
+  },
+});
 
 export const update = internalMutation({
   args: {

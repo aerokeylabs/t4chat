@@ -14,6 +14,18 @@ fn get_var(key: &'static str) -> anyhow::Result<String> {
   Ok(var)
 }
 
+fn get_url_var(key: &'static str) -> anyhow::Result<Url> {
+  let url_str = get_var(key)?;
+
+  let url_str = if !url_str.ends_with('/') {
+    format!("{url_str}/")
+  } else {
+    url_str
+  };
+
+  url_str.parse().context(format!("{key} must be a valid URL"))
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
   pub application: ApplicationConfig,
@@ -96,20 +108,20 @@ impl OpenrouterConfig {
 
   fn from_env() -> anyhow::Result<Self> {
     let api_key = SecretString::from(get_var(Self::API_KEY_KEY)?);
+    let api_url = get_url_var(Self::API_URL_KEY)?;
+    let model_api_url = get_url_var(Self::MODEL_API_URL_KEY)?;
 
-    let api_url = get_var(Self::API_URL_KEY)?;
-    let api_url = api_url.parse()?;
-
-    let model_api_url = get_var(Self::MODEL_API_URL_KEY)?;
-    let model_api_url = model_api_url.parse()?;
-
-    Ok(Self { api_key, api_url, model_api_url })
+    Ok(Self {
+      api_key,
+      api_url,
+      model_api_url,
+    })
   }
 }
 
 #[derive(Debug, Clone)]
 pub struct ConvexConfig {
-  pub url: String,
+  pub url: Url,
   pub id: String,
   pub api_key: SecretString,
 }
@@ -120,10 +132,9 @@ impl ConvexConfig {
   const URL_KEY: &'static str = "CONVEX_URL";
 
   fn from_env() -> anyhow::Result<Self> {
-    let url = get_var(Self::URL_KEY)?;
+    let url = get_url_var(Self::URL_KEY)?;
     let id = get_var(Self::DEPLOYMENT_KEY)?;
-    let api_key = get_var(Self::API_KEY_KEY)?;
-    let api_key = SecretString::from(api_key);
+    let api_key = SecretString::from(get_var(Self::API_KEY_KEY)?);
 
     Ok(Self { url, id, api_key })
   }

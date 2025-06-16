@@ -20,7 +20,11 @@ pub struct Message {
   #[serde(rename = "_id")]
   pub id: String,
   pub thread_id: String,
-  pub status: MessageStatus,
+  #[serde(default)]
+  pub status: Option<MessageStatus>,
+  // Add any other fields that might be in the response but we don't need to use
+  #[serde(flatten)]
+  pub extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -41,15 +45,24 @@ pub async fn get_by_id(client: &mut ConvexClient, id: String) -> Result<Option<M
   .await
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MessagesResponse {
+  messages: Vec<Message>,
+}
+
 pub async fn get_by_thread_id(client: &mut ConvexClient, thread_id: String) -> Result<Vec<Message>> {
   const GET_BY_THREAD_ID: &str = "messages:apiGetByThreadId";
 
-  convex_query(
+  // Use the correct parameter name that Convex expects (likely camelCase)
+  let response: MessagesResponse = convex_query(
     client,
     GET_BY_THREAD_ID,
     BTreeMap::from([("threadId".to_string(), Value::String(thread_id))]),
   )
-  .await
+  .await?;
+  
+  Ok(response.messages)
 }
 
 #[derive(Serialize, Clone)]

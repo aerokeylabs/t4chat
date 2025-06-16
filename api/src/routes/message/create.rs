@@ -92,6 +92,109 @@ pub enum OpenrouterEvent {
   Unauthorized,
 }
 
+async fn generate_title_from_content(
+  openrouter: Arc<Mutex<OpenrouterClient>>,
+  thread_id: String,
+  content: &str
+) -> Result<String, StreamChatError> {
+  info!("Generating title for thread: {}", thread_id);
+  info!("Content for title generation: {}", content);
+
+  let system_message = ChatCompletionMessage {
+    role: MessageRole::system,
+    content: Content::Text("You are a helpful assistant that generates concise, descriptive titles based on the user's messages. Create a short, one-line title (maximum 50 characters) that summarizes the main topic or question.".to_string()),
+    name: None,
+    tool_calls: None,
+    tool_call_id: None,
+  };
+  
+  let user_message = ChatCompletionMessage {
+    role: MessageRole::user,
+    content: Content::Text(content.to_string()),
+    name: None,
+    tool_calls: None,
+    tool_call_id: None,
+  };
+  
+  let request = ChatCompletionRequest::new(
+    String::from("anthropic/claude-3-haiku"), // Using a smaller model for title generation
+    vec![system_message, user_message],
+  )
+  .max_tokens(50)
+  .temperature(0.3)
+  .stream(true);
+
+  let openrouter_guard = openrouter.lock().await;
+  let builder = match openrouter_guard.request_builder(Method::POST, "chat/completions", None) {
+    Ok(builder) => {
+      builder.json(&request)
+    },
+    Err(e) => {
+      error!("Failed to build request: {:?}", e);
+      return Ok("Chat Conversation".to_string());
+    },
+  };
+  drop(openrouter_guard);
+
+  let (_trigger, stream) = match stream_openrouter_chat(builder, false).await {
+    Ok((trigger, stream)) => {
+      (trigger, stream)
+    },
+    Err(e) => {
+      error!("Failed to start title stream: {:?}", e);
+      return Ok("Chat Conversation".to_string());
+    },
+  };
+
+  let mut title = String::new();
+
+  pin_mut!(stream);
+  
+  while let Some(event) = stream.next().await {
+    match event {
+      OpenrouterEvent::Completion(completion) => {
+        if let Some(choice) = completion.choices.first() {
+          match &choice.delta {
+            ChatDelta::Text { content } => {
+              if !content.is_empty() {
+                title.push_str(content);
+              } else {
+              }
+            },
+            ChatDelta::Refusal { .. } => {
+              warn!("LLM refused to generate a title");
+              return Ok("Chat Conversation".to_string());
+            },
+            ChatDelta::Finished { .. } => {
+              info!("Received finished delta from LLM");
+            },
+          }
+        } else {
+          warn!("Received completion with no choices");
+        }
+      },
+      OpenrouterEvent::Error => {
+        error!("Error in title generation stream");
+        return Ok("Chat Conversation".to_string());
+      },
+      OpenrouterEvent::Unauthorized => {
+        error!("Unauthorized in title generation stream");
+        return Ok("Chat Conversation".to_string());
+      },
+    }
+  }
+
+  let final_title = title.trim()
+    .trim_matches(|c| c == '"' || c == '\'' || c == '`')
+    .to_string();
+
+  if final_title.is_empty() {
+    Ok("Chat Conversation".to_string())
+  } else {
+    Ok(final_title)
+  }
+}
+
 #[tracing::instrument("stream openrouter chat", skip_all, err)]
 async fn stream_openrouter_chat(
   request: RequestBuilder,
@@ -197,28 +300,29 @@ async fn stream_chat(
   mut kill_rx: mpsc::Receiver<()>,
   context: ChatContext,
 ) -> Result<(), StreamChatError> {
+  let user_message = context.user_message.clone();
+  
   let request = ChatCompletionRequest::new(
     context.model,
     vec![ChatCompletionMessage {
       role: MessageRole::user,
-      content: Content::Text(context.user_message),
+      content: Content::Text(user_message),
       name: None,
       tool_calls: None,
       tool_call_id: None,
     }],
   )
   .stream(true)
-  // .max_tokens(500)
   .temperature(0.7);
 
-  let openrouter = openrouter.lock().await;
-
+  let openrouter_guard = openrouter.lock().await;
+  
   let using_custom_key = context.custom_key.is_some();
-  let request = openrouter
+  let request = openrouter_guard
     .request_builder(Method::POST, "chat/completions", context.custom_key)?
     .json(&request);
-
-  drop(openrouter);
+  
+  drop(openrouter_guard);
 
   let (stream_trigger, stream) = stream_openrouter_chat(request, using_custom_key)
     .await
@@ -324,13 +428,22 @@ async fn stream_chat(
     return Err(StreamChatError::CompleteMessage);
   }
 
-  // todo: get title from model
-
   if context.set_title {
-    let success = threads::set_title(&mut convex_client, context.thread.id, "Chat Conversation".to_string()).await?;
-
-    if !success {
-      return Err(StreamChatError::SetThreadTitle);
+    let thread_messages = messages::get_by_thread_id(&mut convex_client, context.thread.id.clone()).await?;
+    if thread_messages.len() <= 2 {
+      let thread_id = context.thread.id.clone();
+      let user_message = context.user_message.clone();
+      
+      let title = generate_title_from_content(
+        Arc::clone(&openrouter),
+        thread_id.clone(),
+        &user_message
+      ).await.unwrap_or_else(|_| "Chat Conversation".to_string());
+      info!("Setting thread title to: {}", title);
+      let success = threads::set_title(&mut convex_client, thread_id, title).await?;
+      if !success {
+        return Err(StreamChatError::SetThreadTitle);
+      }
     }
   }
 
@@ -385,7 +498,7 @@ pub async fn create_message(
     return Err(CreateMessageError::MessageNotFound);
   };
 
-  if message.status != MessageStatus::Pending {
+  if message.status.as_ref() != Some(&MessageStatus::Pending) {
     return Err(CreateMessageError::ResponseMessageNotPending);
   }
 

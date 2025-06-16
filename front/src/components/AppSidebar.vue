@@ -88,7 +88,7 @@ const threads = computed(() => {
       <span>thingy</span>
     </SidebarHeader>
 
-    <SidebarContent>
+    <SidebarContent class="custom-scrollbar">
       <SidebarMenuItem class="px-2">
         <RouterLink to="/chat" custom v-slot="{ navigate }">
           <Button variant="outline" class="w-full" @click="navigate">New Chat</Button>

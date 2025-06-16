@@ -223,7 +223,7 @@ onMounted(() => {
     <AppSidebar />
 
     <main class="chat">
-      <div ref="messagesContainer" class="messages" :style="{ '--chatbox-height': `${chatboxHeight}px` }">
+      <div ref="messagesContainer" class="messages custom-scrollbar" :style="{ '--chatbox-height': `${chatboxHeight}px` }">
         <RouterView />
       </div>
 
@@ -245,6 +245,38 @@ onMounted(() => {
 <style>
 :root {
   --chatbox-spacing: calc(var(--spacing) * 4);
+  --scrollbar-width: 8px;
+  --scrollbar-track: rgba(0, 0, 0, 0.05);
+  --scrollbar-thumb: color-mix(in oklab, var(--secondary) 50%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--secondary) 70%, transparent);
+}
+
+/* Global custom scrollbar style */
+.custom-scrollbar {
+  /* Modern Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+    height: var(--scrollbar-width);
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+    backdrop-filter: blur(10px);
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
 }
 
 @keyframes popIn {
@@ -292,8 +324,9 @@ onMounted(() => {
 
   padding-top: calc(var(--spacing) * 32);
   padding-bottom: var(--chatbox-height);
-
-  scrollbar-width: thin;
+  
+  /* Add custom scrollbar */
+  @extend .custom-scrollbar;
 
   > section {
     width: 100%;

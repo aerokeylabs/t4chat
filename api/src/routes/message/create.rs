@@ -120,6 +120,9 @@ async fn stream_openrouter_chat(
             },
           }
         },
+        Err(EventSourceError::StreamEnded) => {
+          break;
+        },
         Err(EventSourceError::InvalidStatusCode(StatusCode::UNAUTHORIZED, _)) if using_custom_key => {
           yield OpenrouterEvent::Unauthorized;
         },

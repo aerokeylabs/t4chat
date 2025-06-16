@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppSidebar from '@/components/AppSidebar.vue';
 import Chatbox from '@/components/Chatbox.vue';
+import LoadingDots from '@/components/LoadingDots.vue';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { useMutation } from '@/composables/convex';
 import { useSelectedModel } from '@/composables/selectedModel';
@@ -35,6 +36,8 @@ const {
   showScrollToBottomPill,
   resetScrollState,
 } = useStreamingMessage();
+
+const isWaitingForFirstChunk = ref(false);
 
 const selected = useSelectedModel();
 
@@ -73,6 +76,9 @@ async function onSend(message: string) {
   }
 
   try {
+    // Set waiting for first chunk to true
+    isWaitingForFirstChunk.value = true;
+    
     if (isInThread.value) {
       console.info('send message to thread', threadId.value, 'with content', message);
       const result = await createMessageMutation({
@@ -136,6 +142,10 @@ async function onSend(message: string) {
 
       switch (type) {
         case '0': {
+          // Hide loading indicator when first chunk arrives
+          if (isWaitingForFirstChunk.value) {
+            isWaitingForFirstChunk.value = false;
+          }
           addChunk(value);
           break;
         }
@@ -233,6 +243,11 @@ onMounted(() => {
         :style="{ '--chatbox-height': `${chatboxHeight}px` }"
       >
         <RouterView />
+        
+        <!-- Loading indicator while waiting for first chunk -->
+        <div v-if="isWaitingForFirstChunk" class="loading-indicator-container">
+          <LoadingDots />
+        </div>
       </div>
 
       <!-- Scroll to bottom pill -->
@@ -372,6 +387,16 @@ onMounted(() => {
 
     background-color: color-mix(in oklab, var(--secondary) 30%, transparent);
   }
+}
+
+.loading-indicator-container {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: var(--container-4xl);
+  padding: 0 calc(var(--spacing) * 4);
+  margin-bottom: 12px;
 }
 
 .scroll-to-bottom-pill {

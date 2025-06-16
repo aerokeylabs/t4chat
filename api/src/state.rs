@@ -4,7 +4,8 @@ use std::sync::Arc;
 use snowflake::SnowflakeGenerator;
 use tokio::sync::{Mutex, mpsc};
 
-use crate::setup::{ConvexClient, OpenrouterClient};
+use crate::convex::ConvexClient;
+use crate::openrouter::OpenrouterClient;
 
 #[derive(Clone)]
 pub struct AppState {

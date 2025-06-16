@@ -1,6 +1,7 @@
 use std::env;
 
 use anyhow::{Context, bail};
+use reqwest::Url;
 use secrecy::SecretString;
 
 fn get_var(key: &'static str) -> anyhow::Result<String> {
@@ -83,19 +84,26 @@ impl SnowflakeConfig {
 
 #[derive(Debug, Clone)]
 pub struct OpenrouterConfig {
-  pub api_url: String,
+  pub api_url: Url,
   pub api_key: SecretString,
+  pub model_api_url: Url,
 }
 
 impl OpenrouterConfig {
   const API_KEY_KEY: &'static str = "OPENROUTER_API_KEY";
   const API_URL_KEY: &'static str = "OPENROUTER_API_URL";
+  const MODEL_API_URL_KEY: &'static str = "OPENROUTER_MODEL_API_URL";
 
   fn from_env() -> anyhow::Result<Self> {
     let api_key = SecretString::from(get_var(Self::API_KEY_KEY)?);
-    let api_url = get_var(Self::API_URL_KEY)?;
 
-    Ok(Self { api_key, api_url })
+    let api_url = get_var(Self::API_URL_KEY)?;
+    let api_url = api_url.parse()?;
+
+    let model_api_url = get_var(Self::MODEL_API_URL_KEY)?;
+    let model_api_url = model_api_url.parse()?;
+
+    Ok(Self { api_key, api_url, model_api_url })
   }
 }
 

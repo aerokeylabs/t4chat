@@ -16,6 +16,15 @@ export type MessagePart = { type: 'text'; text: string };
 
 export type ModelParamsRequest = { reasoningEffort: string; includeSearch: boolean };
 
+export type ModelResponse = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  image: boolean;
+  reasoning: boolean;
+};
+
 export type TestType = { awa: string; wawa: number };
 
 /**
@@ -47,6 +56,12 @@ export const Routes = {
    * - POST `message/cancel`
    */
   messageCancel: () => 'message/cancel' as const,
+
+  /**
+   * Route for:
+   * - GET `models`
+   */
+  models: () => 'models' as const,
 };
 
 Object.freeze(Routes);

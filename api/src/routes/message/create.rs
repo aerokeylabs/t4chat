@@ -12,11 +12,11 @@ use tokio::sync::{Mutex, mpsc};
 
 use crate::convex::messages::{CompleteMessageArgs, Message, MessageStatus, ModelParams};
 use crate::convex::threads::Thread;
-use crate::convex::{ConvexError, messages, threads};
+use crate::convex::{ConvexClient, ConvexError, messages, threads};
+use crate::convex_serde;
 use crate::openai::{ChatCompletion, ChatDelta};
+use crate::openrouter::{OpenrouterClient, add_custom_key};
 use crate::prelude::*;
-use crate::setup::{ConvexClient, OpenrouterClient, add_custom_key};
-use crate::{convex_serde, into_response};
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(tag = "type", rename_all = "camelCase")]

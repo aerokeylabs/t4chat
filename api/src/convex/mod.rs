@@ -3,12 +3,31 @@ pub mod threads;
 
 use std::collections::BTreeMap;
 
+use anyhow::Context;
 use convex::{FunctionResult, Value};
 use secrecy::{ExposeSecret, SecretString};
 use serde::de::DeserializeOwned;
 
+use crate::config::ConvexConfig;
 use crate::convex_serde;
-use crate::setup::ConvexClient;
+use crate::prelude::*;
+
+#[derive(Clone)]
+pub struct ConvexClient {
+  pub client: convex::ConvexClient,
+  pub api_key: SecretString,
+}
+
+pub async fn create_convex_client(config: &ConvexConfig) -> anyhow::Result<ConvexClient> {
+  let client = convex::ConvexClient::new(&config.url)
+    .await
+    .context("failed to create Convex client")?;
+
+  Ok(ConvexClient {
+    client,
+    api_key: config.api_key.clone(),
+  })
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConvexError {

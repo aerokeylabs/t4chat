@@ -7,6 +7,7 @@ pub mod convex_serde;
 pub mod error;
 pub mod logger;
 pub mod openai;
+pub mod openrouter;
 pub mod routes;
 pub mod setup;
 pub mod state;
@@ -22,9 +23,8 @@ pub mod prelude {
   pub use specta::Type;
   pub use tracing::{debug, error, info, warn};
 
-  // pub use crate::auth::CurrentUser;
+  pub use crate::into_response;
   pub use crate::state::AppState;
-  // pub use crate::{db, into_response};
 
   pub type Timestamp = chrono::DateTime<chrono::Utc>;
 }

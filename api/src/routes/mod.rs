@@ -4,13 +4,11 @@ pub use router::{RouteInfo, Router, print_routes};
 use crate::prelude::*;
 
 mod message;
+mod models;
 
 #[tracing::instrument(name = "creating main router", skip(_state))]
 pub fn router(_state: AppState) -> Router<AppState> {
-  Router::new().nest(
-    "/message", 
-    Router::new()
-      .post("/", message::create::create_message)
-      .post("/cancel", message::cancel::cancel_message)
-  )
+  Router::new()
+    .nest("/message", message::router())
+    .nest("/models", models::router())
 }

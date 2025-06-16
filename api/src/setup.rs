@@ -1,83 +1,13 @@
 use anyhow::Context;
-use axum::http::header::AUTHORIZATION;
-use axum::http::{HeaderMap, HeaderValue};
-use openai_api_rs::v1::api::OpenAIClient;
-use reqwest::{Client, Method, RequestBuilder, Url};
-use secrecy::{ExposeSecret, SecretString};
 use snowflake::SnowflakeGenerator;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 
-use crate::config::{Config, EPOCH_MS, OpenrouterConfig};
+use crate::config::{Config, EPOCH_MS};
+use crate::convex::{ConvexClient, create_convex_client};
+use crate::openrouter::{OpenrouterClient, create_openrouter_client};
 use crate::prelude::*;
 use crate::routes::{RouteInfo, Router, print_routes, router};
-
-#[derive(Clone)]
-pub struct ConvexClient {
-  pub client: convex::ConvexClient,
-  pub api_key: SecretString,
-}
-
-pub struct OpenrouterClient {
-  pub base_url: Url,
-  pub openai: OpenAIClient,
-  pub http: Client,
-}
-
-impl OpenrouterClient {
-  pub fn request_builder(&self, method: Method, path: &str) -> anyhow::Result<RequestBuilder> {
-    Ok(self.http.request(method, self.base_url.join(path)?))
-  }
-}
-
-pub fn add_custom_key(key: Option<String>, builder: RequestBuilder) -> RequestBuilder {
-  if let Some(key) = key {
-    builder
-      .header(AUTHORIZATION, format!("Bearer {key}"))
-      .header("api-key", key)
-  } else {
-    builder
-  }
-}
-
-fn create_openrouter_client(config: &OpenrouterConfig) -> anyhow::Result<OpenrouterClient> {
-  let api_key = config.api_key.expose_secret();
-
-  // unwrap because build function just cant fail yet returns
-  // result<client, box<dyn Error>> for some reason
-  let openai = OpenAIClient::builder()
-    .with_endpoint(config.api_url.clone())
-    .with_api_key(api_key)
-    .with_header("api-key", api_key)
-    .build()
-    .unwrap();
-
-  let mut headers = HeaderMap::new();
-  headers.insert("api-key", HeaderValue::from_str(api_key)?);
-  headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {api_key}"))?);
-
-  let http = Client::builder()
-    .default_headers(headers)
-    .build()
-    .context("failed to create HTTP client")?;
-
-  Ok(OpenrouterClient {
-    base_url: config.api_url.parse()?,
-    openai,
-    http,
-  })
-}
-
-async fn create_convex_client(config: &Config) -> anyhow::Result<ConvexClient> {
-  let client = convex::ConvexClient::new(&config.convex.url)
-    .await
-    .context("failed to create Convex client")?;
-
-  Ok(ConvexClient {
-    client,
-    api_key: config.convex.api_key.clone(),
-  })
-}
 
 pub struct Application {
   port: u16,
@@ -89,7 +19,7 @@ pub struct Application {
 impl Application {
   pub async fn build(config: Config) -> anyhow::Result<Self> {
     let openrouter = create_openrouter_client(&config.openrouter)?;
-    let convex = create_convex_client(&config).await?;
+    let convex = create_convex_client(&config.convex).await?;
 
     let snowflakes = SnowflakeGenerator::new(config.snowflake.worker, config.snowflake.process, EPOCH_MS);
 

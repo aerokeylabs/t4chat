@@ -1,0 +1,96 @@
+use anyhow::Context;
+use axum::http::header::AUTHORIZATION;
+use axum::http::{HeaderMap, HeaderValue};
+use openai_api_rs::v1::api::OpenAIClient;
+use reqwest::{Client, Method, RequestBuilder, StatusCode, Url};
+use secrecy::ExposeSecret;
+
+use crate::config::OpenrouterConfig;
+use crate::openrouter::types::ListModelsResponse;
+
+pub mod types;
+
+pub struct OpenrouterClient {
+  pub base_url: Url,
+  pub model_base_url: Url,
+  pub openai: OpenAIClient,
+  pub http: Client,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum OpenrouterError {
+  #[error("failed to send request: {0}")]
+  Request(#[from] reqwest::Error),
+  #[error("response not ok ({0}): {1:?}")]
+  NotOk(StatusCode, Option<String>),
+  #[error("failed to parse response: {0}")]
+  Parse(#[from] serde_json::Error),
+}
+
+impl OpenrouterClient {
+  pub fn request_builder(&self, method: Method, path: &str) -> anyhow::Result<RequestBuilder> {
+    Ok(self.http.request(method, self.base_url.join(path)?))
+  }
+
+  fn model_request_builder(&self, method: Method, path: &str) -> anyhow::Result<RequestBuilder> {
+    Ok(self.http.request(method, self.model_base_url.join(path)?))
+  }
+
+  pub async fn get_models(&self) -> Result<ListModelsResponse, OpenrouterError> {
+    const PATH: &str = "models";
+    // path is static so just unwrap
+    let builder = self.model_request_builder(Method::GET, PATH).unwrap();
+
+    let response = builder.send().await?;
+
+    if !response.status().is_success() {
+      let status = response.status();
+      let text = response.text().await.ok();
+      return Err(OpenrouterError::NotOk(status, text));
+    }
+
+    Ok(response.json().await?)
+  }
+}
+
+pub fn add_custom_key(key: Option<String>, builder: RequestBuilder) -> RequestBuilder {
+  if let Some(key) = key {
+    let builder = builder.header(AUTHORIZATION, format!("Bearer {key}"));
+
+    #[cfg(debug_assertions)]
+    let builder = builder.header("api-key", key);
+
+    builder
+  } else {
+    builder
+  }
+}
+
+pub fn create_openrouter_client(config: &OpenrouterConfig) -> anyhow::Result<OpenrouterClient> {
+  let api_key = config.api_key.expose_secret();
+
+  // unwrap because build function just cant fail yet returns
+  // result<client, box<dyn Error>> for some reason
+  let openai = OpenAIClient::builder()
+    .with_endpoint(config.api_url.clone())
+    .with_api_key(api_key)
+    .with_header("api-key", api_key)
+    .build()
+    .unwrap();
+
+  let mut headers = HeaderMap::new();
+  headers.insert("api-key", HeaderValue::from_str(api_key)?);
+  headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {api_key}"))?);
+
+  let http = Client::builder()
+    .default_headers(headers)
+    .build()
+    .context("failed to create HTTP client")?;
+
+  Ok(OpenrouterClient {
+    base_url: config.api_url.clone(),
+    model_base_url: config.model_api_url.clone(),
+    openai,
+    http,
+  })
+}

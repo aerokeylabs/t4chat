@@ -63,4 +63,18 @@ export default defineSchema({
     userSetTitle: v.boolean(),
     visibility: v.string(),
   }).index('by_user', ['userId']),
+
+  models: defineTable({
+    id: v.string(),
+    slug: v.string(),
+    name: v.string(),
+    description: v.string(),
+    image: v.boolean(),
+    reasoning: v.boolean(),
+    speed: v.float64(),
+  })
+    .searchIndex('by_name', {
+      searchField: 'name',
+    })
+    .index('by_slug', ['slug']),
 });

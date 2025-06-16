@@ -3,8 +3,7 @@ use std::collections::BTreeMap;
 use convex::Value;
 use serde::Deserialize;
 
-use crate::convex::{Result, convex_mutation, convex_query};
-use crate::setup::ConvexClient;
+use crate::convex::{ConvexClient, Result, convex_mutation, convex_query};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]

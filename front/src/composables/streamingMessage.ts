@@ -1,10 +1,16 @@
-import { computed, ref } from 'vue';
+import { computed, nextTick, onUnmounted, ref } from 'vue';
 
 const message = ref('');
 const completed = ref(true);
 const cancelled = ref(false);
 const failed = ref(false);
 const currentThreadId = ref<string | null>(null);
+const messagesContainer = ref<HTMLElement | null>(null);
+
+// Scroll tracking state
+const userHasScrolledUp = ref(false);
+const showScrollToBottomPill = ref(false);
+let scrollEventListener: (() => void) | null = null;
 
 // For character-by-character interpolation
 const pendingChunks = ref<string[]>([]);
@@ -13,6 +19,21 @@ let interpolationInterval: number | null = null;
 const INTERPOLATION_SPEED = 2; // ms between characters
 
 export function useStreamingMessage() {
+  // Clean up event listener when component is unmounted
+  onUnmounted(() => {
+    if (scrollEventListener && messagesContainer.value) {
+      messagesContainer.value.removeEventListener('scroll', scrollEventListener);
+      scrollEventListener = null;
+    }
+  });
+  /**
+   * Reset scroll tracking state when user sends a message
+   */
+  function resetScrollState() {
+    userHasScrolledUp.value = false;
+    showScrollToBottomPill.value = false;
+  }
+  
   function onStreamStarted(threadId: string) {
     message.value = '';
     completed.value = false;
@@ -48,6 +69,9 @@ export function useStreamingMessage() {
       clearInterval(interpolationInterval);
       interpolationInterval = null;
     }
+    
+    // Final scroll to bottom when message is complete
+    scrollToBottom();
   }
 
   function onStreamCancelled() {
@@ -93,6 +117,9 @@ export function useStreamingMessage() {
     if (!isInterpolating.value) {
       startInterpolation();
     }
+    
+    // Scroll to bottom when adding new content
+    scrollToBottom();
   }
   
   /**
@@ -129,6 +156,72 @@ export function useStreamingMessage() {
   }
 
   const isStreaming = computed(() => !completed.value && !cancelled.value && !failed.value);
+  
+  /**
+   * Check if user has scrolled up from the bottom
+   */
+  function checkIfUserScrolledUp() {
+    if (!messagesContainer.value) return;
+    
+    const container = messagesContainer.value;
+    const scrollDifference = container.scrollHeight - container.clientHeight - container.scrollTop;
+    
+    // A small threshold to account for small differences due to rendering
+    const scrollThreshold = 50;
+    
+    // Determine if user has scrolled up significantly
+    userHasScrolledUp.value = scrollDifference > scrollThreshold;
+    
+    // Show the pill if user has scrolled up and there is streaming content or new messages
+    showScrollToBottomPill.value = userHasScrolledUp.value && 
+      (isStreaming.value || message.value.trim().length > 0);
+  }
+  
+  /**
+   * Scroll the messages container to the bottom
+   */
+  function scrollToBottom(force: boolean = false) {
+    // Use nextTick to ensure DOM is updated before scrolling
+    nextTick(() => {
+      // If not explicitly set, find messages container in the DOM
+      if (!messagesContainer.value) {
+        messagesContainer.value = document.querySelector('.messages') as HTMLElement;
+      }
+      
+      if (messagesContainer.value) {
+        // Only scroll if the user hasn't manually scrolled up or if force=true
+        if (!userHasScrolledUp.value || force) {
+          // Scroll to bottom with smooth animation
+          messagesContainer.value.scrollTo({
+            top: messagesContainer.value.scrollHeight,
+            behavior: 'smooth'
+          });
+        } else {
+          // User has scrolled up, show the pill instead
+          showScrollToBottomPill.value = true;
+        }
+      }
+    });
+  }
+
+  /**
+   * Set the messages container element reference
+   */
+  function setMessagesContainer(element: HTMLElement | null) {
+    messagesContainer.value = element;
+    
+    // Set up scroll event listener
+    if (messagesContainer.value) {
+      // Remove any existing listener first
+      if (scrollEventListener) {
+        messagesContainer.value.removeEventListener('scroll', scrollEventListener);
+      }
+      
+      // Create and attach new scroll listener
+      scrollEventListener = () => checkIfUserScrolledUp();
+      messagesContainer.value.addEventListener('scroll', scrollEventListener);
+    }
+  }
 
   return {
     message,
@@ -143,5 +236,12 @@ export function useStreamingMessage() {
     isStreaming,
     // New function for character-by-character interpolation
     addChunk,
+    // Scroll to bottom functionality
+    scrollToBottom,
+    setMessagesContainer,
+    // Scroll pill functionality
+    userHasScrolledUp,
+    showScrollToBottomPill,
+    resetScrollState,
   };
 }

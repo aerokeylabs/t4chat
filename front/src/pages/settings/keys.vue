@@ -12,7 +12,7 @@ const { keys } = useSettings();
 
   <Label class="text-secondary-foreground mt-4 flex flex-col items-start gap-4">
     <span>OpenRouter Key</span>
-    <Input v-model="keys.openrouter" placeholder="sk-..." maxlength="64" class="font-mono" />
+    <Input v-model="keys.openrouter" placeholder="sk-..." maxlength="256" class="font-mono" />
   </Label>
 
   <pre>{{ keys }}</pre>

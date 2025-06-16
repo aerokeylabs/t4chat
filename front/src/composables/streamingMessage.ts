@@ -118,8 +118,11 @@ export function useStreamingMessage() {
       startInterpolation();
     }
     
-    // Scroll to bottom when adding new content
-    scrollToBottom();
+    if (!userHasScrolledUp.value) {
+      scrollToBottom();
+    } else if (!showScrollToBottomPill.value) {
+      showScrollToBottomPill.value = true;
+    }
   }
   
   /**
@@ -172,9 +175,9 @@ export function useStreamingMessage() {
     // Determine if user has scrolled up significantly
     userHasScrolledUp.value = scrollDifference > scrollThreshold;
     
-    // Show the pill if user has scrolled up and there is streaming content or new messages
-    showScrollToBottomPill.value = userHasScrolledUp.value && 
-      (isStreaming.value || message.value.trim().length > 0);
+    // Show the pill if user has scrolled up significantly
+    // We now show it whenever user scrolls up, regardless of streaming state
+    showScrollToBottomPill.value = userHasScrolledUp.value;
   }
   
   /**

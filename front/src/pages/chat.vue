@@ -28,6 +28,7 @@ const {
   onStreamCancelled,
   onStreamFailed,
   isStreaming,
+  addChunk,
 } = useStreamingMessage();
 
 const model = ref('');
@@ -120,7 +121,7 @@ async function onSend(message: string) {
 
       switch (type) {
         case '0': {
-          streamingMessage.value += value;
+          addChunk(value);
           break;
         }
         case '1': {

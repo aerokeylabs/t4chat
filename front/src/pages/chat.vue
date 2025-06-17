@@ -55,7 +55,7 @@ async function onSend(message: string) {
   resetScrollState();
   scrollToBottom(true);
 
-  const modelParams = { includeSearch: false, reasoningEffort: 'medium' };
+  const modelParams = { includeSearch: selected.searchEnabled, reasoningEffort: 'medium' };
 
   let activeThreadId: string;
 
@@ -82,10 +82,11 @@ async function onSend(message: string) {
 
     if (isInThread.value) {
       console.info('send message to thread', threadId.value, 'with content', message);
+      const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
       const result = await createMessageMutation({
         threadId: threadId.value as Id<'threads'>,
         messageParts: [{ type: 'text', text: message }],
-        model: selected.model.slug,
+        model: modelSlug,
         modelParams,
       });
 
@@ -96,10 +97,11 @@ async function onSend(message: string) {
 
       console.debug('created message', result.assistantMessageId, 'in thread', threadId.value);
 
+      const modelId = selected.searchEnabled ? `${selected.model.id}:online` : selected.model.id;
       eventSource = apiPostSse<CreateMessageRequest>(Routes.message(), {
         threadId: threadId.value,
         responseMessageId: result.assistantMessageId,
-        model: selected.model.id,
+        model: modelId,
         modelParams,
       });
 
@@ -107,16 +109,18 @@ async function onSend(message: string) {
     } else {
       console.debug('create new thread with content', message);
 
-      const thread = await createThreadMutation({ model: selected.model.slug, modelParams, message });
+      const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
+      const thread = await createThreadMutation({ model: modelSlug, modelParams, message });
 
       console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
 
       router.push(`/chat/${thread.threadId}`);
 
+      const modelId = selected.searchEnabled ? `${selected.model.id}:online` : selected.model.id;
       eventSource = apiPostSse<CreateMessageRequest>(Routes.message(), {
         threadId: thread.threadId,
         responseMessageId: thread.assistantMessageId,
-        model: selected.model.id,
+        model: modelId,
         modelParams,
       });
 

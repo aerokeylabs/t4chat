@@ -89,7 +89,7 @@ fn message_to_part(message: ConvexMessage) -> Message {
     })
     .collect();
 
-  Message { role, content }
+  Message { role, content, annotations: None }
 }
 
 #[tracing::instrument("create message", skip(state), err)]

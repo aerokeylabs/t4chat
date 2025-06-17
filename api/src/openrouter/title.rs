@@ -21,6 +21,7 @@ pub async fn generate_title_from_content(
   let system_message = Message {
     role: Role::System,
     content: TITLE_GENERATION_SYSTEM_MESSAGE.to_string(),
+    annotations: None,
   };
 
   let mut messages = vec![system_message];
@@ -29,6 +30,7 @@ pub async fn generate_title_from_content(
   messages.push(Message {
     role: Role::User,
     content: "What is the title of this conversation?".to_string(),
+    annotations: None,
   });
 
   let completions = get_completions(openrouter, TITLE_GENERATION_MODEL, messages, custom_key, Some(50)).await?;

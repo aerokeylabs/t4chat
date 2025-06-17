@@ -173,10 +173,30 @@ pub enum Role {
   Tool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Annotations {
+    pub annotations: Vec<Annotation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Annotation {
+    #[serde(rename = "url_citation")]
+    UrlCitation { url_citation: UrlCitationData },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UrlCitationData {
+    pub title: String,
+    pub url: String,
+    pub content: String,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Message {
   pub role: Role,
   pub content: String,
+  pub annotations: Option<Annotations>,
 }
 
 #[derive(Serialize)]

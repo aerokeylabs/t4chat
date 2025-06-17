@@ -68,7 +68,7 @@
   --accent-foreground: lch(30 calc(3 * var(--c)) var(--h));
 
   --destructive: lch(70 clamp(50, calc(50 * var(--c)), 75) 21);
-  --destructive-foreground: lch(70 clamp(50, calc(50 * var(--c)), 75) 21);
+  --destructive-foreground: lch(10 0 21);
 
   --border: lch(92 calc(2 * var(--c)) var(--h));
   --input: lch(92 calc(2 * var(--c)) var(--h));
@@ -114,8 +114,8 @@
   --accent: lch(35 calc(3 * var(--c)) var(--h) / 0.3);
   --accent-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
 
-  --destructive: lch(40 calc(14 * var(--c)) 26);
-  --destructive-foreground: lch(64 calc(24 * var(--c)) 25);
+  --destructive: lch(40 clamp(50, calc(50 * var(--c)), 75) 21);
+  --destructive-foreground: lch(90 0 21);
 
   --border: lch(16 calc(8 * var(--c)) var(--h));
   --input: lch(25 calc(8 * var(--c)) var(--h));
@@ -154,4 +154,10 @@
 input[type='number'] {
   appearance: textfield;
   -moz-appearance: textfield;
+}
+
+body input[data-com-onepassword-filled],
+body input[data-com-onepassword-filled]:focus {
+  background-color: pink !important;
+  background-clip: text !important;
 }

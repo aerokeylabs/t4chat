@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Input } from '@/components/ui/input';
+import SensitiveInput from '@/components/input/SensitiveInput.vue';
 import { Label } from '@/components/ui/label';
 import { useSettings } from '@/composables/settings';
 
@@ -12,8 +12,6 @@ const { keys } = useSettings();
 
   <Label class="text-secondary-foreground mt-4 flex flex-col items-start gap-4">
     <span>OpenRouter Key</span>
-    <Input v-model="keys.openrouter" placeholder="sk-..." maxlength="256" class="font-mono" />
+    <SensitiveInput v-model="keys.openrouter" placeholder="sk-..." maxlength="256" class="font-mono" />
   </Label>
-
-  <pre>{{ keys }}</pre>
 </template>

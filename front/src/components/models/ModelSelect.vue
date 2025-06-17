@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import IconInput from '@/components/IconInput.vue';
+import IconInput from '@/components/input/IconInput.vue';
 import ModelListItem from '@/components/models/ModelListItem.vue';
 import { Button } from '@/components/ui/button';
 import { useQuery, useReactiveQuery } from '@/composables/convex';

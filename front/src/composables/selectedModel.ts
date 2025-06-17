@@ -9,5 +9,7 @@ export const useSelectedModel = defineStore('selectedModel', () => {
   const args = computed(() => ({ slug: slug.value ?? '' }));
   const { data: model } = useReactiveQuery(api.models.getBySlug, args);
 
-  return { slug, model };
+  const searchEnabled = useLocalStorage<boolean>('search-enabled', false);
+
+  return { slug, model, searchEnabled };
 });

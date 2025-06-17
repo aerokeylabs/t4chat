@@ -43,6 +43,9 @@ export const getFeatured = query({
   },
 });
 
+// regex to match the first sentence in first capture group
+const sentenceRegex = /^.*?[.!?](?:\s|$)/g;
+
 export const update = internalMutation({
   args: {
     models: v.array(
@@ -63,10 +66,22 @@ export const update = internalMutation({
         .withIndex('by_slug', (q) => q.eq('slug', slug))
         .first();
 
+      let trimmedDescription: string;
+
+      // trim description to first sentence
+      if (description.length > 0) {
+        const match = description.match(sentenceRegex);
+        if (match && match[0]) {
+          trimmedDescription = match[0].trim();
+        } else {
+          trimmedDescription = description.trim();
+        }
+      }
+
       if (model != null) {
         await ctx.db.patch(model._id, {
           name,
-          description,
+          description: trimmedDescription,
           image,
           reasoning,
         });
@@ -75,7 +90,7 @@ export const update = internalMutation({
           id,
           slug,
           name,
-          description,
+          description: trimmedDescription,
           image,
           reasoning,
           speed: 0,
@@ -101,7 +116,7 @@ export const removeOld = internalMutation({
   },
 });
 
-export const updateModels = internalAction(async (ctx) => {
+export const updateModelsFromApi = internalAction(async (ctx) => {
   let apiKey = getApiKey();
   let apiUrl = getApiUrl();
 

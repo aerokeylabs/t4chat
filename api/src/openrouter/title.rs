@@ -7,7 +7,7 @@ use crate::openrouter::completions::get_completions;
 use crate::openrouter::types::{Message, Role};
 use crate::prelude::*;
 
-const TITLE_GENERATION_SYSTEM_MESSAGE: &str = "You are a helpful assistant that generates concise, descriptive titles based on the user's messages. Create a short, one-line title (maximum 50 characters) that summarizes the main topic or question. Respond with only the title, without any additional text or formatting. Do not include quotes, backticks, or any other characters around the title. The title should be clear and relevant to the content provided.";
+const TITLE_GENERATION_SYSTEM_MESSAGE: &str = "You are an AI assistant that creates short, descriptive titles. Your only task is to generate a concise title (max 50 characters) based on the user's messages. You must always return a title, even if the conversation seems unclear. Do not add any explanation, just provide the title text. Never return an empty response.";
 const TITLE_GENERATION_MODEL: &str = "anthropic/claude-3-haiku";
 
 pub async fn generate_title_from_content(
@@ -25,6 +25,11 @@ pub async fn generate_title_from_content(
 
   let mut messages = vec![system_message];
   messages.extend(thread_messages);
+
+  messages.push(Message {
+    role: Role::User,
+    content: "What is the title of this conversation?".to_string(),
+  });
 
   let completions = get_completions(openrouter, TITLE_GENERATION_MODEL, messages, custom_key, Some(50)).await?;
 

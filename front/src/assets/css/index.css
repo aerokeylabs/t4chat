@@ -94,18 +94,18 @@
 
 .dark {
   --background: lch(3 calc(0.5 * var(--c)) var(--h));
-  --foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+  --foreground: lch(98 calc(2 * var(--c)) var(--h));
 
   --card: lch(27 calc(0.5 * var(--c)) var(--h));
   --card-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
 
-  --popover: lch(10 calc(0.5 * var(--c)) var(--h));
+  --popover: lch(10 calc(3 * var(--c)) var(--h));
   --popover-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
 
   --primary: lch(98 calc(0.5 * var(--c)) var(--h));
   --primary-foreground: lch(30 calc(0.5 * var(--c)) var(--h));
 
-  --secondary: lch(14 calc(3 * var(--c)) var(--h));
+  --secondary: lch(18 calc(6 * var(--c)) var(--h));
   --secondary-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
 
   --muted: lch(35 calc(3 * var(--c)) var(--h));
@@ -117,9 +117,9 @@
   --destructive: lch(40 calc(14 * var(--c)) 26);
   --destructive-foreground: lch(64 calc(24 * var(--c)) 25);
 
-  --border: lch(24 calc(2 * var(--c)) var(--h));
-  --input: lch(35 calc(2 * var(--c)) var(--h));
-  --ring: lch(44 calc(3 * var(--c)) var(--h));
+  --border: lch(16 calc(8 * var(--c)) var(--h));
+  --input: lch(25 calc(8 * var(--c)) var(--h));
+  --ring: lch(44 calc(8 * var(--c)) var(--h));
 
   --chart-1: lch(49 calc(24 * var(--c)) 264);
   --chart-2: lch(70 calc(17 * var(--c)) 162);
@@ -127,7 +127,7 @@
   --chart-4: lch(63 calc(27 * var(--c)) 304);
   --chart-5: lch(65 calc(25 * var(--c)) 16);
 
-  --sidebar: lch(10 calc(1 * var(--c)) var(--h));
+  --sidebar: lch(6 calc(3 * var(--c)) var(--h));
   --sidebar-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
 
   --sidebar-primary: lch(49 calc(24 * var(--c)) 264);
@@ -149,4 +149,9 @@
   body {
     @apply bg-background text-foreground overflow-hidden;
   }
+}
+
+input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
 }

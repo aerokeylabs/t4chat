@@ -2,6 +2,7 @@
 import ModelSelect from '@/components/models/ModelSelect.vue';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useChatbox } from '@/composables/chatbox';
 import { useSelectedModel } from '@/composables/selectedModel';
 import { useStreamingMessage } from '@/composables/streamingMessage';
@@ -123,6 +124,8 @@ function onFileInputChange(event: Event) {
   if (target.files) {
     selectedFiles.value = [...selectedFiles.value, ...Array.from(target.files)];
     target.value = ''; // Reset input
+
+    nextTick(updateTextareaHeight);
   }
 }
 
@@ -140,18 +143,34 @@ function formatFileSize(bytes: number): string {
 
 <template>
   <div class="chatbox">
-    <div>
+    <div class="input-area">
       <textarea ref="textarea" v-model="message" placeholder="Type your message here..."></textarea>
 
       <!-- File attachments display -->
       <div v-if="selectedFiles.length > 0" class="file-attachments">
         <div v-for="(file, index) in selectedFiles" :key="index" class="file-attachment">
           <div class="file-info">
-            <span class="file-name">{{ file.name }}</span>
-            <span class="file-size">{{ formatFileSize(file.size) }}</span>
+            <Tooltip>
+              <TooltipTrigger>
+                <span class="file-name">{{ file.name }}</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span>{{ file.name }}</span>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger>
+                <span class="file-size">{{ formatFileSize(file.size) }}</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span>{{ Intl.NumberFormat('en-us').format(file.size) }} bytes</span>
+              </TooltipContent>
+            </Tooltip>
           </div>
-          <Button variant="ghost" size="icon-sm" @click="removeFile(index)" class="remove-file">
-            <XIcon class="size-3" />
+
+          <Button variant="ghost" size="icon-sm" @click="removeFile(index)" class="remove-file hover:text-red-500">
+            <XIcon class="size-5" />
           </Button>
         </div>
       </div>
@@ -207,61 +226,65 @@ function formatFileSize(bytes: number): string {
 
   gap: calc(var(--spacing) * 2);
 
-  .file-attachments {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 8px;
-    max-height: 200px;
-    overflow-y: auto;
-  }
+  > .input-area {
+    > textarea {
+      appearance: none;
+      resize: none;
 
-  .file-attachment {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 8px;
-    background-color: rgba(0, 0, 0, 0.05);
-    border-radius: var(--radius);
-  }
+      width: 100%;
+      height: 100%;
 
-  .file-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    max-width: calc(100% - 30px);
-  }
+      max-height: 256px;
 
-  .file-name {
-    font-size: 0.9rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 200px;
-  }
+      padding: calc(var(--spacing) * 2);
 
-  .file-size {
-    font-size: 0.75rem;
-    color: var(--color-muted);
-  }
+      &:focus {
+        outline: none;
+      }
+    }
 
-  .hidden {
-    display: none;
-  }
+    > .file-attachments {
+      display: flex;
+      flex-direction: column;
+      margin-top: calc(var(--spacing) * 2);
+      padding: 0 calc(var(--spacing) * 2);
+      max-height: 200px;
+      overflow-y: auto;
 
-  > textarea {
-    appearance: none;
-    resize: none;
+      .file-attachment {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
 
-    width: 100%;
-    height: 100%;
+        padding: calc(var(--spacing) * 1.5) 0;
+        border-bottom: 1px solid var(--color-border);
 
-    max-height: 256px;
+        &:last-child {
+          border-bottom: none;
+        }
 
-    padding: calc(var(--spacing) * 2);
+        > .file-info {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: calc(var(--spacing) * 2);
 
-    &:focus {
-      outline: none;
+          .file-name {
+            font-size: var(--text-base);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
+          }
+
+          .file-size {
+            font-size: var(--text-sm);
+            color: var(--color-muted);
+            /* to vertically align */
+            margin-top: 2px;
+          }
+        }
+      }
     }
   }
 }

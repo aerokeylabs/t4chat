@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Slider from '@/components/Slider.vue';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type ThemeMode, useTheme } from '@/composables/theme';
@@ -28,13 +29,13 @@ function setMode(mode: ThemeMode) {
 
 <template>
   <div class="theme-settings">
-    <div class="flex w-full p-1">
-      <button :class="{ active: dark }" @click="setMode('dark')">Dark</button>
-      <button :class="{ active: system }" @click="setMode('system')">System</button>
-      <button :class="{ active: light }" @click="setMode('light')">Light</button>
+    <div class="theme-buttons">
+      <Button variant="ghost" :active="dark" @click="setMode('dark')">Dark</Button>
+      <Button variant="ghost" :active="system" @click="setMode('system')">System</Button>
+      <Button variant="ghost" :active="light" @click="setMode('light')">Light</Button>
     </div>
 
-    <div class="flex flex-col gap-2 px-3 py-2">
+    <div class="theme-slider">
       <Label>Set hue</Label>
       <div class="flex items-center gap-2">
         <Input
@@ -53,7 +54,7 @@ function setMode(mode: ThemeMode) {
       </div>
     </div>
 
-    <div class="flex flex-col gap-2 px-3 py-2">
+    <div class="theme-slider">
       <Label>Set chroma</Label>
       <div class="flex items-center gap-2">
         <Input
@@ -77,49 +78,27 @@ function setMode(mode: ThemeMode) {
 
 <style>
 .theme-settings {
-  button {
-    position: relative;
-    width: 100%;
-    height: 32px;
-    color: var(--text-floating);
-    background-color: transparent;
-    font-size: 15px;
-    font-weight: 500;
-    z-index: 1;
-    transition:
-      transform 0.1s ease,
-      color 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
 
-    &::after {
-      content: '';
-      position: absolute;
-      inset: 0px;
-      background-color: transparent;
-      z-index: -1;
-      border-radius: 6px;
-      transition: background-color 0.2s ease;
-    }
+  > .theme-buttons {
+    display: flex;
+    flex-direction: row;
+    padding: var(--spacing);
+    gap: var(--spacing);
 
-    &.active::after {
-      background-color: var(--accent);
+    > * {
+      flex: 1;
     }
+  }
 
-    &:first-child::after,
-    &:last-child::after {
-      inset: 0px 4px;
-    }
-
-    &:hover {
-      background-color: var(--accent);
-    }
-
-    &:active {
-      transform: scale(0.96);
-    }
-
-    &:active::after {
-      opacity: 0.7;
-    }
+  > .theme-slider {
+    display: flex;
+    flex-direction: column;
+    padding: calc(var(--spacing) * 2);
+    gap: calc(var(--spacing) * 2);
   }
 }
 

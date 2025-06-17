@@ -1,8 +1,8 @@
 <template>
   <div class="loading-dots">
-    <span class="dot"></span>
-    <span class="dot"></span>
-    <span class="dot"></span>
+    <span></span>
+    <span></span>
+    <span></span>
   </div>
 </template>
 
@@ -12,24 +12,24 @@
   align-items: center;
   gap: 4px;
   padding: 8px;
-}
 
-.loading-dots .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: whitesmoke;
-  opacity: 0.7;
-  display: inline-block;
-  animation: dotBounce 1.4s infinite ease-in-out both;
-}
+  > span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: whitesmoke;
+    opacity: 0.7;
+    display: inline-block;
+    animation: dotBounce 1.4s infinite ease-in-out both;
+  }
 
-.loading-dots .dot:nth-child(1) {
-  animation-delay: -0.32s;
-}
+  > span:nth-child(1) {
+    animation-delay: -0.32s;
+  }
 
-.loading-dots .dot:nth-child(2) {
-  animation-delay: -0.16s;
+  > span:nth-child(2) {
+    animation-delay: -0.16s;
+  }
 }
 
 @keyframes dotBounce {

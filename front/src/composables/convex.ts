@@ -38,7 +38,18 @@ export function useQuery<Q extends Query>(query: Q, args?: QueryArgs<Q>) {
 
   const unsubscribe = client.onUpdate(query, args, onResult, onError);
 
-  return { data, error, unsubscribe };
+  return {
+    data,
+    error,
+    unsubscribe: () => {
+      try {
+        unsubscribe();
+      } catch (err) {
+        console.error('Unsubscribe failed:', err);
+        error.value = err as Error;
+      }
+    },
+  };
 }
 
 export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<QueryArgs<Q>>, enable?: Ref<boolean>) {
@@ -60,8 +71,8 @@ export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<Quer
   let unsubscribe: () => void;
 
   function subscribe(args?: QueryArgs<Q>) {
-    if (unsubscribe) unsubscribe();
     try {
+      if (unsubscribe) unsubscribe();
       unsubscribe = client.onUpdate(query, args, onResult, onError);
     } catch (err) {
       console.error('Subscription failed:', err);
@@ -76,10 +87,16 @@ export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<Quer
 
   if (enable != null) {
     watch(enable, (enabled) => {
-      if (enabled) {
-        if (unsubscribe == null) subscribe(maybeArgs?.value);
-      } else {
-        if (unsubscribe != null) unsubscribe();
+      try {
+        if (enabled) {
+          if (unsubscribe == null) subscribe(maybeArgs?.value);
+        } else {
+          if (unsubscribe != null) unsubscribe();
+        }
+      } catch (err) {
+        console.error('Subscription failed:', err);
+        error.value = err as Error;
+        data.value = null;
       }
     });
   }
@@ -90,7 +107,12 @@ export function useReactiveQuery<Q extends Query>(query: Q, maybeArgs?: Ref<Quer
     data,
     error,
     unsubscribe: () => {
-      if (unsubscribe != null) unsubscribe();
+      try {
+        if (unsubscribe != null) unsubscribe();
+      } catch (err) {
+        console.error('Unsubscribe failed:', err);
+        error.value = err as Error;
+      }
     },
   };
 }

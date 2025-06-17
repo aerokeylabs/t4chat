@@ -43,6 +43,7 @@ const icons = computed(() => {
   justify-content: space-between;
   align-items: center;
   width: 100%;
+  gap: calc(var(--spacing) * 2);
 
   > div {
     display: flex;

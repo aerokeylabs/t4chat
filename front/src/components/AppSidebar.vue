@@ -24,6 +24,8 @@ import moment from 'moment';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import Theme from '@/components/Theme.vue';
 
 const menu = useCommandMenu();
 
@@ -177,20 +179,30 @@ const isOnNewPage = computed(() => {
 
   <Teleport to="body">
     <div class="top-right-controls">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" @click="menu.toggle">
-            <SunIcon />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">Theme</TooltipContent>
-      </Tooltip>
+      <Popover>
+        <PopoverTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm">
+                <SunIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Theme</TooltipContent>
+          </Tooltip>
+        </PopoverTrigger>
+
+        <PopoverContent class="w-sm">
+          <Theme />
+        </PopoverContent>
+      </Popover>
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" @click="menu.toggle">
-            <Settings2Icon />
-          </Button>
+          <RouterLink to="/settings" custom v-slot="{ navigate }">
+            <Button variant="ghost" size="icon-sm" @click="navigate">
+              <Settings2Icon />
+            </Button>
+          </RouterLink>
         </TooltipTrigger>
         <TooltipContent side="bottom">Settings</TooltipContent>
       </Tooltip>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import IconInput from '@/components/IconInput.vue';
+import ModelListItem from '@/components/models/ModelListItem.vue';
 import { Button } from '@/components/ui/button';
 import { useQuery, useReactiveQuery } from '@/composables/convex';
 import { useSelectedModel } from '@/composables/selectedModel';
@@ -7,7 +8,6 @@ import { api } from '@/convex/_generated/api';
 import { debouncedRef } from '@vueuse/core';
 import { SearchIcon } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
-import ModelListItem from './ModelListItem.vue';
 
 const selected = useSelectedModel();
 function selectModel(slug: string) {
@@ -66,6 +66,12 @@ const displayedModels = computed(() => {
           <ModelListItem :model />
         </Button>
       </template>
+
+      <div v-if="displayedModels.length === 0" class="flex w-full">
+        <span class="text-muted-foreground w-full p-4 text-center">
+          {{ hasQuery ? 'No models found' : 'No models available' }}
+        </span>
+      </div>
     </div>
   </div>
 </template>
@@ -76,8 +82,9 @@ const displayedModels = computed(() => {
   flex-direction: column;
   gap: calc(var(--spacing) * 2);
 
-  max-height: 570px;
-  width: 100%;
+  height: 570px;
+  /* min-height: 300px; */
+  width: 480px;
 
   .model-select-inner {
     min-height: 0;

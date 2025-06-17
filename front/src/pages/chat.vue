@@ -12,7 +12,7 @@ import { apiPostSse, cancelMessage } from '@/lib/api';
 import { Routes, type CreateMessageRequest } from '@/lib/types';
 import { useLocalStorage } from '@vueuse/core';
 import { SSE, type SSEvent } from 'sse.js';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import { toast } from 'vue-sonner';
 
@@ -234,9 +234,8 @@ async function onCancel() {
 }
 
 const chatboxHeight = ref(300);
-const messagesContainer = ref<HTMLElement | null>(null);
+const messagesContainer = useTemplateRef('messages-container');
 
-// Set the messages container reference for scroll to bottom functionality
 onMounted(() => {
   setMessagesContainer(messagesContainer.value);
 });
@@ -250,19 +249,17 @@ const sidebarOpen = useLocalStorage('sidebar-open', false);
 
     <main class="chat">
       <div
-        ref="messagesContainer"
+        ref="messages-container"
         class="messages custom-scrollbar"
         :style="{ '--chatbox-height': `${chatboxHeight}px` }"
       >
         <RouterView />
 
-        <!-- Loading indicator while waiting for first chunk -->
         <div v-if="isWaitingForFirstChunk" class="loading-indicator-container">
           <LoadingDots />
         </div>
       </div>
 
-      <!-- Scroll to bottom pill -->
       <div v-if="showScrollToBottomPill" class="scroll-to-bottom-pill" @click="scrollToBottom(true)">
         <span class="pill-text">Scroll to bottom</span>
         <span class="pill-icon">↓</span>

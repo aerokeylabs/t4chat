@@ -35,7 +35,8 @@ defineProps<{
   padding: var(--spacing);
   padding-left: calc(var(--spacing) * 4);
 
-  background-color: color-mix(in oklab, var(--color-secondary) 30%, transparent);
+  background-color: color-mix(in oklab, var(--color-sidebar) 50%, transparent);
+  color: var(--color-sidebar-foreground);
 
   border-top-left-radius: var(--radius-lg);
   border-top-right-radius: var(--radius-lg);

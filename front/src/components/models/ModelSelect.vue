@@ -2,7 +2,6 @@
 import IconInput from '@/components/input/IconInput.vue';
 import ModelListItem from '@/components/models/ModelListItem.vue';
 import { Button } from '@/components/ui/button';
-import ScrollBar from '@/components/ui/scroll-area/ScrollBar.vue';
 import { useQuery, useReactiveQuery } from '@/composables/convex';
 import { useSelectedModel } from '@/composables/selectedModel';
 import { api } from '@/convex/_generated/api';
@@ -43,7 +42,7 @@ const displayedModels = computed(() => {
 <template>
   <div class="model-select">
     <div class="model-select-inner">
-      <div class="model-list">
+      <div class="model-list custom-scrollbar">
           <Button
             v-if="!hasQuery && selected.model != null"
             variant="ghost"

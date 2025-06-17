@@ -43,74 +43,102 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --h: 320;
+  --c: 12;
+
+  --background: lch(100 calc(0.5 * var(--c)) var(--h));
+  --foreground: lch(27 calc(0.5 * var(--c)) var(--h));
+  
+  --card: lch(100 calc(0.5 * var(--c)) var(--h));
+  --card-foreground: lch(27 calc(0.5 * var(--c)) var(--h));
+  
+  --popover: lch(100 calc(0.5 * var(--c)) var(--h));
+  --popover-foreground: lch(27 calc(0.5 * var(--c)) var(--h));
+  
+  --primary: lch(30 calc(0.5 * var(--c)) var(--h));
+  --primary-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+  
+  --secondary: lch(95 calc(3 * var(--c)) var(--h));
+  --secondary-foreground: lch(30 calc(3 * var(--c)) var(--h));
+  
+  --muted: lch(95 calc(3 * var(--c)) var(--h));
+  --muted-foreground: lch(60 calc(3 * var(--c)) var(--h));
+
+  --accent: lch(95 calc(3 * var(--c)) var(--h));
+  --accent-foreground: lch(30 calc(3 * var(--c)) var(--h));
+
+  --destructive: lch(70 clamp(50, calc(50 * var(--c)), 75) 21);
+  --destructive-foreground: lch(70 clamp(50, calc(50 * var(--c)), 75) 21);
+  
+  --border: lch(92 calc(2 * var(--c)) var(--h));
+  --input: lch(92 calc(2 * var(--c)) var(--h));  
+  --ring: lch(70 calc(3 * var(--c)) var(--h));
+  
+  --chart-1: lch(65 calc(22 * var(--c)) 41);
+  --chart-2: lch(60 calc(12 * var(--c)) 185);
+  --chart-3: lch(40 calc(7 * var(--c)) 227);
+  --chart-4: lch(83 calc(19 * var(--c)) 84);
+  --chart-5: lch(77 calc(19 * var(--c)) 70);
+  
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  
+  --sidebar: lch(98 calc(0.5 * var(--c)) var(--h));
+  --sidebar-foreground: lch(27 calc(0.5 * var(--c)) var(--h));
+  --sidebar-primary: lch(30 calc(0.5 * var(--c)) var(--h));
+  --sidebar-primary-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+  --sidebar-accent: lch(95 calc(3 * var(--c)) var(--h));
+  --sidebar-accent-foreground: lch(30 calc(3 * var(--c)) var(--h));
+  --sidebar-border: lch(92 calc(2 * var(--c)) var(--h));
+  --sidebar-ring: lch(70 calc(3 * var(--c)) var(--h));
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
+  --background: lch(3 calc(0.5 * var(--c)) var(--h));
+  --foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+
+  --card: lch(27 calc(0.5 * var(--c)) var(--h));
+  --card-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+
+  --popover: lch(10 calc(0.5 * var(--c)) var(--h));
+  --popover-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+
+  --primary: lch(98 calc(0.5 * var(--c)) var(--h));
+  --primary-foreground: lch(30 calc(0.5 * var(--c)) var(--h));
+
+  --secondary: lch(14 calc(3 * var(--c)) var(--h));
+  --secondary-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+
+  --muted: lch(35 calc(3 * var(--c)) var(--h));
+  --muted-foreground: lch(70 calc(3 * var(--c)) var(--h));
+  
+  --accent: lch(35 calc(3 * var(--c)) var(--h) / .3);
+  --accent-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+
+  --destructive: lch(40 calc(14 * var(--c)) 26);
+  --destructive-foreground: lch(64 calc(24 * var(--c)) 25);
+
+  --border: lch(24 calc(2 * var(--c)) var(--h));
+  --input: lch(35 calc(2 * var(--c)) var(--h));
+  --ring: lch(44 calc(3 * var(--c)) var(--h));
+
+  --chart-1: lch(49 calc(24 * var(--c)) 264);
+  --chart-2: lch(70 calc(17 * var(--c)) 162);
+  --chart-3: lch(77 calc(19 * var(--c)) 70);
+  --chart-4: lch(63 calc(27 * var(--c)) 304);
+  --chart-5: lch(65 calc(25 * var(--c)) 16);
+
+  --sidebar: lch(10 calc(1 * var(--c)) var(--h));
+  --sidebar-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+
+  --sidebar-primary: lch(49 calc(24 * var(--c)) 264);
+  --sidebar-primary-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+
+  --sidebar-accent: lch(35 calc(3 * var(--c)) var(--h));
+  --sidebar-accent-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+
+  --sidebar-border: lch(35 calc(2 * var(--c)) var(--h));
+
+  --sidebar-ring: lch(44 calc(3 * var(--c)) var(--h));
 }
 
 @layer base {

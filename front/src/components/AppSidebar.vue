@@ -56,14 +56,16 @@ const threads = computed(() => {
   data.value.threads.forEach((thread) => {
     // skip empty titles to skip uninitialized threads
     if (thread.title == null) return;
-    const date = new Date(thread.createdAt).toISOString().split('T')[0];
+    // Use local timezone for the date
+    const threadDate = new Date(thread.createdAt);
+    const date = threadDate.toLocaleDateString('en-US'); // Format as local date
     const existing = groupedThreads.get(date) ?? { date, threads: [] };
     existing.threads.push(thread);
     groupedThreads.set(date, existing);
   });
 
   return Array.from(groupedThreads).map(([_, { date, threads }]) => ({
-    date: moment(date).calendar(null, {
+    date: moment(date, 'MM/DD/YYYY').local().calendar(null, {
       lastDay: '[Yesterday]',
       sameDay: '[Today]',
       nextDay: '[Tomorrow]',

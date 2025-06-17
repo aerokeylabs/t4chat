@@ -18,7 +18,7 @@ import { useCommandMenu } from '@/composables/useCommandMenu';
 import { api } from '@/convex/_generated/api';
 import { SignInButton, useUser } from '@clerk/vue';
 import { debouncedRef } from '@vueuse/core';
-import { PlusIcon, SearchIcon } from 'lucide-vue-next';
+import { PlusIcon, SearchIcon, Settings2Icon, SunIcon } from 'lucide-vue-next';
 import moment from 'moment';
 import { computed, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
@@ -107,6 +107,28 @@ const isOnNewPage = computed(() => {
           </Button>
         </RouterLink>
       </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div class="top-right-controls">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon-sm" @click="menu.toggle">
+            <SunIcon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Theme</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon-sm" @click="menu.toggle">
+            <Settings2Icon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Settings</TooltipContent>
+      </Tooltip>
     </div>
   </Teleport>
 
@@ -219,6 +241,16 @@ const isOnNewPage = computed(() => {
   &.sidebar-open .secondary-controls {
     opacity: 0;
   }
+}
+
+.top-right-controls {
+  position: fixed;
+  z-index: 1000;
+  top: calc(var(--spacing) * 2);
+  right: calc(var(--spacing) * 2);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing);
 }
 
 .sidebar-button {

@@ -9,7 +9,7 @@ const isAuthenticated = useConvexAuth();
 </script>
 
 <template>
-  <TooltipProvider>
+  <TooltipProvider disable-hoverable-content>
     <Toaster />
     <CommandMenu />
     <RouterView v-if="isAuthenticated" />

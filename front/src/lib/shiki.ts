@@ -1,13 +1,18 @@
 import rehypeShikiFromHighlighter from '@shikijs/rehype/core';
+import type { Element, Root } from 'hast';
+import { isElement } from 'hast-util-is-element';
+import rehypeMathjax from 'rehype-mathjax';
 import rehypeStringify from 'rehype-stringify';
 import remarkBreaks from 'remark-breaks';
+import remarkDefinitionList from 'remark-definition-list';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import remarkRehype from 'remark-rehype';
 import { createHighlighterCore, type HighlighterCore, type ShikiTransformerContext } from 'shiki/core';
 import { createOnigurumaEngine } from 'shiki/engine/oniguruma';
 import { unified } from 'unified';
-import type { Element } from 'hast';
+import { visitParents } from 'unist-util-visit-parents';
 
 let highlighterPromise: Promise<HighlighterCore> | null = null;
 let highlighterSingleton: HighlighterCore | null = null;
@@ -121,6 +126,41 @@ function transform(this: ShikiTransformerContext, hast: Element): void | Element
   };
 }
 
+function isCodeblockWrapper(node: Root | Element): boolean {
+  return (
+    (node.type === 'element' &&
+      node.tagName === 'div' &&
+      (node.properties?.className as string | undefined)?.includes('codeblock')) ??
+    false
+  );
+}
+
+// unified processor that wraps <pre> tags wtih a <div class="codeblock"> tag
+// but only if it does not already have the wrapper
+// shiki does not apply to code blocks without a language so we have to do it manually
+function rehypeWrapPre() {
+  return function (tree: Root) {
+    visitParents(
+      tree,
+      (node) => isElement(node, 'pre'),
+      (node, ancestors) => {
+        let parent = ancestors[ancestors.length - 1];
+
+        if (!isCodeblockWrapper(parent)) {
+          const wrapper = {
+            type: 'element',
+            tagName: 'div',
+            properties: { className: ['codeblock'], 'data-language': node.properties?.lang || 'plaintext' },
+            children: [Object.assign({}, node)],
+          };
+
+          Object.assign(node, wrapper);
+        }
+      },
+    );
+  };
+}
+
 async function createProcessor() {
   const highlighter = await createHighlighter();
 
@@ -128,7 +168,10 @@ async function createProcessor() {
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkBreaks)
+    .use(remarkDefinitionList)
+    .use(remarkMath)
     .use(remarkRehype)
+    .use(rehypeMathjax)
     .use(rehypeShikiFromHighlighter, highlighter as any, {
       inline: 'tailing-curly-colon',
       themes: {
@@ -141,6 +184,7 @@ async function createProcessor() {
         },
       ],
     })
+    .use(rehypeWrapPre)
     .use(rehypeStringify, {});
 
   // warm up shiki

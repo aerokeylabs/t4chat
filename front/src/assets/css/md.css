@@ -74,7 +74,7 @@
   pre {
     display: grid;
     color: var(--muted-foreground);
-    background: var(--muted);
+    background-color: var(--color-sidebar);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
     font-family: var(--font-mono);
@@ -256,10 +256,17 @@
   }
 }
 
-.codeblock > pre {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-top: none;
+.codeblock {
+  &.wrap > pre {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  > pre {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: none;
+  }
 }
 
 .shiki,

@@ -1,12 +1,36 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { ClipboardIcon, WrapTextIcon } from 'lucide-vue-next';
+import { ref, watch } from 'vue';
 
-defineProps<{
+const props = defineProps<{
+  parent: HTMLElement;
   language: string;
   onCopy: () => void;
-  onWrap: () => void;
+  onWrap: (wrap: boolean) => void;
 }>();
+
+function setWrap(value: boolean) {
+  wrap.value = value;
+}
+
+defineExpose({
+  setWrap,
+});
+
+const wrap = ref(false);
+
+function toggleWrap() {
+  wrap.value = !wrap.value;
+  props.onWrap(wrap.value);
+}
+
+watch(
+  () => wrap.value,
+  (newValue) => {
+    props.parent.classList.toggle('wrap', newValue);
+  },
+);
 </script>
 
 <template>
@@ -14,7 +38,7 @@ defineProps<{
     <span>{{ language }}</span>
 
     <div>
-      <Button variant="ghost" size="icon-sm" @click="onWrap">
+      <Button variant="ghost" size="icon-sm" :active="wrap" @click="toggleWrap">
         <WrapTextIcon class="size-4" />
       </Button>
 

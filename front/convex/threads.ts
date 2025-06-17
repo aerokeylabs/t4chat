@@ -185,6 +185,40 @@ export const deleteThreadById = mutation({
   },
 });
 
+export const pinThreadById = mutation({
+  args: {
+    threadId: v.id('threads'),
+  },
+  handler: async (ctx, { threadId }) => {
+    const identity = await getIdentity(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (thread?.userId !== identity.tokenIdentifier) return null;
+
+    await ctx.db.patch(threadId, {
+      pinned: true,
+    });
+
+    return { threadId };
+  },
+});
+
+export const unpinThreadById = mutation({
+  args: {
+    threadId: v.id('threads'),
+  },
+  handler: async (ctx, { threadId }) => {
+    const identity = await getIdentity(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (thread?.userId !== identity.tokenIdentifier) return null;
+
+    await ctx.db.patch(threadId, {
+      pinned: false,
+    });
+
+    return { threadId };
+  },
+});
+
 export const updateTitle = mutation({
   args: {
     threadId: v.id('threads'),

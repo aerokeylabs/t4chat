@@ -1,6 +1,6 @@
 import { useSettings } from '@/composables/settings';
+import type { CancelMessageRequest, CancelMessageResponse } from '@/lib/types';
 import { SSE, type SSEHeaders } from 'sse.js';
-import type { CancelMessageRequest, CancelMessageResponse } from './types';
 
 export function getApiUrl(path: string): string {
   const baseUrl = import.meta.env.VITE_API_URL;

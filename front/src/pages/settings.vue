@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import Theme from '@/components/Theme.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useClerk, useUser } from '@clerk/vue';
 import { ArrowLeftIcon, SunIcon } from 'lucide-vue-next';
-import { RouterLink, RouterView } from 'vue-router';
+import { watch } from 'vue';
+import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 
 const clerk = useClerk();
 const { user } = useUser();
@@ -17,6 +21,17 @@ const navRoutes = [
   ['/settings/attachments', 'Attachments'],
   ['/settings/contact', 'Contact Us'],
 ];
+
+const route = useRoute();
+const router = useRouter();
+
+watch(
+  route,
+  () => {
+    if (route.path === '/settings') router.push('/settings/account');
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -29,9 +44,22 @@ const navRoutes = [
     </RouterLink>
 
     <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon">
-        <SunIcon />
-      </Button>
+      <Popover>
+        <PopoverTrigger>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm">
+                <SunIcon />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Theme</TooltipContent>
+          </Tooltip>
+        </PopoverTrigger>
+
+        <PopoverContent class="w-sm">
+          <Theme />
+        </PopoverContent>
+      </Popover>
 
       <Button variant="ghost" @click="clerk?.signOut()">Sign Out</Button>
     </div>

@@ -26,7 +26,7 @@ const customizationState = reactive({
   hidePersonalInfo: false,
   mainFont: 'Inter',
   codeFont: 'Fira Code',
-  isInitialized: false
+  isInitialized: false,
 });
 
 watch(
@@ -42,12 +42,12 @@ watch(
       customizationState.isInitialized = true;
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 const saveSettings = async () => {
   if (!customizationState.isInitialized) return;
-  
+
   const settingsToUpdate = {
     userName: customizationState.userName,
     userOccupation: customizationState.userOccupation,
@@ -56,7 +56,7 @@ const saveSettings = async () => {
     mainFont: customizationState.mainFont,
     codeFont: customizationState.codeFont,
   };
-  
+
   try {
     await updateSettings({ settings: settingsToUpdate });
   } catch (error) {
@@ -160,13 +160,10 @@ function addTrait(trait: string) {
                 <Label for="hidePersonalInfo" class="cursor-pointer">Hide Personal Information</Label>
               </div>
               <div class="flex items-center gap-2">
-                <Switch 
-                  id="hidePersonalInfo" 
-                  v-model:modelValue="customizationState.hidePersonalInfo"
-                />
+                <Switch id="hidePersonalInfo" v-model:modelValue="customizationState.hidePersonalInfo" />
               </div>
             </div>
-            <p class="text-xs text-muted-foreground">
+            <p class="text-muted-foreground text-xs">
               Toggle this switch to hide/show personal information in the chat.
             </p>
           </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import IconInput from '@/components/IconInput.vue';
+import IconInput from '@/components/input/IconInput.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {

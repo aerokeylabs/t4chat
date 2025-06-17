@@ -2,7 +2,6 @@
 import IconInput from '@/components/IconInput.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Sidebar,
   SidebarContent,
@@ -13,16 +12,18 @@ import {
   SidebarMenuItem,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { useQuery } from '@/composables/convex';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useReactiveQuery } from '@/composables/convex';
 import { api } from '@/convex/_generated/api';
 import { SignInButton, useUser } from '@clerk/vue';
-import { SearchIcon } from 'lucide-vue-next';
-import { computed } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
+import { debouncedRef } from '@vueuse/core';
+import { PlusIcon, SearchIcon } from 'lucide-vue-next';
 import moment from 'moment';
+import { computed, ref } from 'vue';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 
-defineEmits<{
-  (e: 'new-chat'): void;
+defineProps<{
+  open: boolean;
 }>();
 
 const { isLoaded, isSignedIn, user } = useUser();
@@ -33,7 +34,11 @@ function navigateToAccount() {
   router.push('/settings/account');
 }
 
-const { data, error } = useQuery(api.threads.getThreads);
+const query = ref('');
+const debouncedQuery = debouncedRef(query, 300);
+const args = computed(() => ({ query: debouncedQuery.value }));
+
+const { data, error } = useReactiveQuery(api.threads.getThreads, args);
 
 type Thread = NonNullable<typeof data.value>['threads'][number];
 
@@ -77,36 +82,53 @@ const threads = computed(() => {
     threads,
   }));
 });
+
+const route = useRoute();
+
+const isOnNewPage = computed(() => {
+  return route.path === '/chat';
+});
 </script>
 
 <template>
   <Teleport to="body">
-    <div class="sidebar-controls-container">
+    <div class="sidebar-controls-container" :class="{ 'sidebar-open': open }">
       <SidebarTrigger />
+
+      <Button variant="ghost" size="icon-sm">
+        <SearchIcon />
+      </Button>
+
+      <RouterLink to="/chat" custom v-slot="{ navigate }">
+        <Button variant="ghost" size="icon-sm" @click="navigate" :disabled="isOnNewPage">
+          <PlusIcon />
+        </Button>
+      </RouterLink>
     </div>
   </Teleport>
 
-  <TooltipProvider>
   <Sidebar>
-    <SidebarHeader class="flex h-16 items-center justify-center">
-      <span>thingy</span>
-    </SidebarHeader>
+    <SidebarHeader>
+      <SidebarMenuItem class="flex h-16 items-center justify-center">
+        <span>thingy</span>
+      </SidebarMenuItem>
 
-    <SidebarContent class="custom-scrollbar no-horizontal-scroll">
-      <SidebarMenuItem class="px-2">
+      <SidebarMenuItem class="px-1">
         <RouterLink to="/chat" custom v-slot="{ navigate }">
           <Button variant="outline" class="w-full" @click="navigate">New Chat</Button>
         </RouterLink>
       </SidebarMenuItem>
 
-      <SidebarMenuItem class="px-2">
-        <IconInput type="text" placeholder="Search your threads...">
+      <SidebarMenuItem class="px-1">
+        <IconInput type="text" placeholder="Search your threads..." v-model="query">
           <SearchIcon />
         </IconInput>
       </SidebarMenuItem>
+    </SidebarHeader>
 
-      <SidebarGroup v-for="group in threads">
-        <SidebarGroupLabel class="px-2">
+    <SidebarContent class="custom-scrollbar">
+      <SidebarGroup v-if="threads.length > 0" v-for="group in threads">
+        <SidebarGroupLabel class="px-1">
           {{ group.date }}
         </SidebarGroupLabel>
 
@@ -114,13 +136,9 @@ const threads = computed(() => {
           <RouterLink :to="`/chat/${thread._id}`" custom v-slot="{ navigate }">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  class="sidebar-button w-full justify-start px-2" 
-                  @click="navigate"
-                >
+                <Button variant="ghost" class="sidebar-button w-full justify-start px-2" @click="navigate">
                   <span class="truncate-text">
-                  {{ thread.title }}
+                    {{ thread.title }}
                   </span>
                 </Button>
               </TooltipTrigger>
@@ -131,6 +149,10 @@ const threads = computed(() => {
           </RouterLink>
         </SidebarMenuItem>
       </SidebarGroup>
+
+      <SidebarMenuItem v-else-if="query.trim() != ''" class="flex items-center justify-center p-4 text-center">
+        <span class="text-muted-foreground">No threads found for "{{ query }}"</span>
+      </SidebarMenuItem>
     </SidebarContent>
 
     <SidebarFooter>
@@ -160,22 +182,27 @@ const threads = computed(() => {
       </div>
     </SidebarFooter>
   </Sidebar>
-  </TooltipProvider>
 </template>
 
 <style>
 .sidebar-controls-container {
   position: fixed;
 
-  top: 0;
+  z-index: 1000;
+
+  top: calc(var(--spacing) * 2);
   left: calc(var(--spacing) * 2);
-  height: calc(var(--spacing) * 16);
+
+  padding: var(--spacing);
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--secondary) 50%, transparent);
 
   display: flex;
-}
+  align-items: center;
 
-.no-horizontal-scroll {
-  overflow-x: hidden;
+  &.sidebar-open {
+    background: transparent;
+  }
 }
 
 .sidebar-button {

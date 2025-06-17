@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import {
-  TagsInput,
-  TagsInputItem,
-  TagsInputItemDelete,
-  TagsInputItemText,
-  TagsInputInput,
-} from '@/components/ui/tags-input';
+import Name from '@/components/Name.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { defineStore } from 'pinia';
+import {
+  TagsInput,
+  TagsInputInput,
+  TagsInputItem,
+  TagsInputItemDelete,
+  TagsInputItemText,
+} from '@/components/ui/tags-input';
 import { useLocalStorage } from '@vueuse/core';
+import { defineStore } from 'pinia';
 
 // Customization store
 const useCustomizationStore = defineStore('customization', () => {
@@ -48,7 +49,7 @@ const presetTraits = ['friendly', 'witty', 'concise', 'curious', 'empathetic', '
     <!-- Header section -->
     <div>
       <h1 class="text-2xl font-bold">Customization</h1>
-      <p class="text-muted-foreground">Personalize your T4Chat experience.</p>
+      <p class="text-muted-foreground">Personalize your <Name /> experience.</p>
     </div>
 
     <!-- Main content -->
@@ -58,7 +59,7 @@ const presetTraits = ['friendly', 'witty', 'concise', 'curious', 'empathetic', '
         <h2 class="text-xl font-semibold">Personal Information</h2>
         <div class="mt-4 space-y-4">
           <div class="space-y-2">
-            <Label for="username">What should T4 Chat call you?</Label>
+            <Label for="username">What should <Name /> call you?</Label>
             <Input id="username" v-model="customization.userName" placeholder="Enter your name" class="max-w-sm" />
           </div>
 
@@ -76,8 +77,8 @@ const presetTraits = ['friendly', 'witty', 'concise', 'curious', 'empathetic', '
 
       <!-- Traits section -->
       <div>
-        <h2 class="text-xl font-semibold">T4Chat Traits</h2>
-        <p class="text-muted-foreground text-sm">What traits should T4Chat have?</p>
+        <h2 class="text-xl font-semibold"><Name /> Traits</h2>
+        <p class="text-muted-foreground text-sm">What traits should <Name /> have?</p>
 
         <div class="mt-4 flex flex-col gap-4">
           <div>

@@ -10,6 +10,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { apiPostSse, cancelMessage } from '@/lib/api';
 import { Routes, type CreateMessageRequest } from '@/lib/types';
+import { useLocalStorage } from '@vueuse/core';
 import { SSE, type SSEvent } from 'sse.js';
 import { computed, onMounted, ref } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
@@ -230,11 +231,13 @@ const messagesContainer = ref<HTMLElement | null>(null);
 onMounted(() => {
   setMessagesContainer(messagesContainer.value);
 });
+
+const sidebarOpen = useLocalStorage('sidebar-open', false);
 </script>
 
 <template>
-  <SidebarProvider>
-    <AppSidebar />
+  <SidebarProvider v-model:open="sidebarOpen">
+    <AppSidebar :open="sidebarOpen" />
 
     <main class="chat">
       <div

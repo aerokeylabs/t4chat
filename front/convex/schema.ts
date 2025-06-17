@@ -62,7 +62,12 @@ export default defineSchema({
     userId: v.string(),
     userSetTitle: v.boolean(),
     visibility: v.string(),
-  }).index('by_user', ['userId']),
+  })
+    .searchIndex('by_title', {
+      searchField: 'title',
+      filterFields: ['userId', 'visibility'],
+    })
+    .index('by_user', ['userId']),
 
   models: defineTable({
     id: v.string(),

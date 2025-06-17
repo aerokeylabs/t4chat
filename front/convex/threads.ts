@@ -27,14 +27,31 @@ export const apiGetById = query({
 });
 
 export const getThreads = query({
-  handler: async (ctx) => {
+  args: {
+    query: v.optional(v.string()),
+  },
+  handler: async (ctx, { query }) => {
     const identity = await getIdentity(ctx);
+
+    if (query == null || query.trim() === '') {
+      const threads = await ctx.db
+        .query('threads')
+        .withIndex('by_user', (q) => q.eq('userId', identity.tokenIdentifier))
+        .take(256);
+
+      threads.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+
+      return { threads };
+    }
 
     const threads = await ctx.db
       .query('threads')
-      .withIndex('by_user', (q) => q.eq('userId', identity.tokenIdentifier))
-      .order('desc')
+      .withSearchIndex('by_title', (q) =>
+        q.search('title', query.trim()).eq('visibility', 'visible').eq('userId', identity.tokenIdentifier),
+      )
       .take(256);
+
+    threads.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
 
     return { threads };
   },

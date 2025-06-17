@@ -10,9 +10,10 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
+import Theme from '@/components/commands/Theme.vue';
 
-// State for command dialog visibility
 const open = ref(false);
+const themeDialogOpen = ref(false);
 
 const router = useRouter();
 
@@ -46,7 +47,10 @@ function runCommand(command: string) {
     router.push('/chat');
   }
 
-  // Close the command dialog
+  if (command === 'open-theme') {
+    themeDialogOpen.value = true;
+  }
+
   open.value = false;
 }
 
@@ -78,8 +82,24 @@ onUnmounted(() => {
           <CommandItem value="clear-history" @select="() => runCommand('clear-history')">
             <span>Clear History</span>
           </CommandItem>
+          <CommandItem value="open-theme" @select="() => runCommand('open-theme')">
+            <span>Theme Settings</span>
+          </CommandItem>
         </CommandGroup>
       </CommandList>
     </Command>
   </CommandDialog>
+  
+  <!-- Theme Dialog -->
+  <div v-if="themeDialogOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="bg-background rounded-lg shadow-lg w-80">
+      <div class="flex justify-between items-center p-3 border-b">
+        <h3 class="text-lg font-medium">Theme Settings</h3>
+        <button @click="themeDialogOpen = false" class="rounded-full p-1 hover:bg-muted">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <Theme @close="themeDialogOpen = false" />
+    </div>
+  </div>
 </template>

@@ -5,6 +5,34 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>awa</title>
+    <script>
+      const storedTheme = localStorage.getItem('theme') ?? 'system';
+
+      switch (storedTheme) {
+        case 'system': {
+          document.documentElement.classList.remove('dark', 'light');
+          const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.classList.add(isDark ? 'dark' : 'light');
+          break;
+        }
+        case 'dark': {
+          document.documentElement.classList.remove('light');
+          document.documentElement.classList.add('dark');
+          break;
+        }
+        case 'light': {
+          document.documentElement.classList.remove('dark');
+          document.documentElement.classList.add('light');
+          break;
+        }
+      }
+
+      const storedHue = localStorage.getItem('hue') ?? '0';
+      document.documentElement.style.setProperty('--h', +parseFloat(storedHue).toFixed(2));
+
+      const storedSaturation = localStorage.getItem('chroma') ?? '0';
+      document.documentElement.style.setProperty('--c', +parseFloat(storedSaturation).toFixed(2));
+    </script>
   </head>
   <body>
     <div id="app"></div>

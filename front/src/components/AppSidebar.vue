@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useReactiveQuery } from '@/composables/convex';
+import { useCommandMenu } from '@/composables/useCommandMenu';
 import { api } from '@/convex/_generated/api';
 import { SignInButton, useUser } from '@clerk/vue';
 import { debouncedRef } from '@vueuse/core';
@@ -21,6 +22,8 @@ import { PlusIcon, SearchIcon } from 'lucide-vue-next';
 import moment from 'moment';
 import { computed, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
+
+const menu = useCommandMenu();
 
 defineProps<{
   open: boolean;
@@ -35,7 +38,7 @@ function navigateToAccount() {
 }
 
 const query = ref('');
-const debouncedQuery = debouncedRef(query, 300);
+const debouncedQuery = debouncedRef(query, 150);
 const args = computed(() => ({ query: debouncedQuery.value }));
 
 const { data, error } = useReactiveQuery(api.threads.getThreads, args);
@@ -95,15 +98,17 @@ const isOnNewPage = computed(() => {
     <div class="sidebar-controls-container" :class="{ 'sidebar-open': open }">
       <SidebarTrigger />
 
-      <Button variant="ghost" size="icon-sm">
-        <SearchIcon />
-      </Button>
-
-      <RouterLink to="/chat" custom v-slot="{ navigate }">
-        <Button variant="ghost" size="icon-sm" @click="navigate" :disabled="isOnNewPage">
-          <PlusIcon />
+      <div class="secondary-controls">
+        <Button variant="ghost" size="icon-sm" @click="menu.toggle">
+          <SearchIcon />
         </Button>
-      </RouterLink>
+
+        <RouterLink to="/chat" custom v-slot="{ navigate }">
+          <Button variant="ghost" size="icon-sm" @click="navigate" :disabled="isOnNewPage">
+            <PlusIcon />
+          </Button>
+        </RouterLink>
+      </div>
     </div>
   </Teleport>
 
@@ -199,9 +204,22 @@ const isOnNewPage = computed(() => {
 
   display: flex;
   align-items: center;
+  gap: var(--spacing);
 
   &.sidebar-open {
     background: transparent;
+  }
+
+  .secondary-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing);
+    opacity: 1;
+    transition: opacity 0.2s ease-in-out;
+  }
+
+  &.sidebar-open .secondary-controls {
+    opacity: 0;
   }
 }
 

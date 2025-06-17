@@ -22,14 +22,38 @@ const icons = computed(() => {
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
-    <span>{{ displayModelName(model.name) }}</span>
-    <Tooltip>
-      <TooltipTrigger><InfoIcon /></TooltipTrigger>
-      <TooltipContent class="max-w-sm">{{ model.description }}</TooltipContent>
-    </Tooltip>
-  </div>
-  <div class="flex gap-2">
-    <component :is="icon" v-for="icon in icons" />
+  <div class="model-item">
+    <div>
+      <span>{{ displayModelName(model.name) }}</span>
+
+      <Tooltip>
+        <TooltipTrigger><InfoIcon class="text-muted-foreground" /></TooltipTrigger>
+        <TooltipContent class="max-w-[300px] text-center">{{ model.description }}</TooltipContent>
+      </Tooltip>
+    </div>
+    <div>
+      <component :is="icon" v-for="icon in icons" />
+    </div>
   </div>
 </template>
+
+<style>
+.model-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+
+  > div {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+
+    > span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+</style>

@@ -45,6 +45,7 @@ export const getFeatured = query({
 
 // regex to match the first sentence in first capture group
 const sentenceRegex = /^.*?[.!?](?:\s|$)/g;
+const markdownLinkRegex = /\[(.*?)\]\(.*?\)/g;
 
 export const update = internalMutation({
   args: {
@@ -72,11 +73,14 @@ export const update = internalMutation({
       if (description.length > 0) {
         const match = description.match(sentenceRegex);
         if (match && match[0]) {
-          trimmedDescription = match[0].trim();
+          trimmedDescription = match[0];
         } else {
-          trimmedDescription = description.trim();
+          trimmedDescription = description;
         }
       }
+
+      // replace [text](url) with just text
+      trimmedDescription = trimmedDescription.replace(markdownLinkRegex, '$1').trim();
 
       if (model != null) {
         await ctx.db.patch(model._id, {

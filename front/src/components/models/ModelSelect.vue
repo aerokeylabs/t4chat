@@ -17,7 +17,7 @@ function selectModel(slug: string) {
 const { data: featured } = useQuery(api.models.getFeatured);
 
 const query = ref('');
-const debouncedQuery = debouncedRef(query, 300);
+const debouncedQuery = debouncedRef(query, 150);
 
 const args = computed(() => ({ query: debouncedQuery.value }));
 const hasQuery = computed(() => debouncedQuery.value.trim() !== '');

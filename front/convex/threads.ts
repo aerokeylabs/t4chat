@@ -346,3 +346,37 @@ export const apiGetMessagesUntil = query({
     return messages.filter((message) => message._creationTime <= until._creationTime);
   },
 });
+
+// Get message counts for multiple threads
+export const getMessageCounts = query({
+  args: {
+    threadIds: v.array(v.id('threads')),
+  },
+  handler: async (ctx, { threadIds }) => {
+    const identity = await getIdentity(ctx);
+    const counts: Record<string, number> = {};
+
+    // Get all messages for the requested threads
+    const allMessages = await Promise.all(
+      threadIds.map(async (threadId) => {
+        const thread = await ctx.db.get(threadId);
+        // Only count messages for threads that belong to the current user
+        if (thread?.userId === identity.tokenIdentifier) {
+          const messages = await ctx.db
+            .query('messages')
+            .withIndex('by_thread', (q) => q.eq('threadId', threadId))
+            .collect();
+          return { threadId, count: messages.length };
+        }
+        return { threadId, count: 0 };
+      })
+    );
+
+    // Convert to a record for easier lookup
+    allMessages.forEach(({ threadId, count }) => {
+      counts[threadId] = count;
+    });
+
+    return counts;
+  },
+});

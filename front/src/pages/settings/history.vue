@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -11,74 +11,114 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { useLocalStorage } from '@vueuse/core';
-import { defineStore } from 'pinia';
+import { useMutation, useReactiveQuery } from '@/composables/convex';
+import type { Id } from '@/convex/_generated/dataModel';
+import { api } from '@/convex/_generated/api';
 import { ref, computed } from 'vue';
+import { TrashIcon } from 'lucide-vue-next';
+import { toast } from 'vue-sonner';
+import moment from 'moment';
 
-// Mock conversation data for demo purposes
-// In a real app, this would come from an API or local storage
-const useHistoryStore = defineStore('history', () => {
-  const conversations = useLocalStorage('history_conversations', [
-    { id: '1', title: 'Chat about project ideas', date: '2023-06-10', messages: 12 },
-    { id: '2', title: 'Code review assistance', date: '2023-06-12', messages: 8 },
-    { id: '3', title: 'Help with JavaScript bugs', date: '2023-06-14', messages: 15 },
-  ]);
+const deleteThreadMutation = useMutation(api.threads.deleteThreadById);
 
-  function deleteConversation(id: string) {
-    const index = conversations.value.findIndex((conv) => conv.id === id);
-    if (index !== -1) {
-      conversations.value.splice(index, 1);
-    }
-  }
+const query = ref('');
+const queryArgs = computed(() => ({
+  query: query.value,
+}));
+const { data: threadsData } = useReactiveQuery(api.threads.getThreads, queryArgs);
 
-  function deleteAllConversations() {
-    conversations.value = [];
-  }
+const threadIds = computed(() => threadsData.value?.threads.map((t) => t._id) || []);
+const { data: messageCounts } = useReactiveQuery(
+  api.threads.getMessageCounts,
+  computed(() => ({ threadIds: threadIds.value })),
+);
 
-  return {
-    conversations,
-    deleteConversation,
-    deleteAllConversations,
-  };
+const formattedThreads = computed(() => {
+  if (!threadsData.value) return [];
+
+  return threadsData.value.threads
+    .map((thread) => ({
+      id: thread._id,
+      title: thread.title || 'Untitled conversation',
+      date: moment(thread._creationTime).format('YYYY-MM-DD'),
+      messages: messageCounts.value?.[thread._id] || 0,
+      ...thread,
+    }))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 });
 
-const historyStore = useHistoryStore();
-const selectedConversations = ref<string[]>([]);
+const deleteThread = async (threadId: string) => {
+  try {
+    await deleteThreadMutation({ threadId: threadId as Id<'threads'> });
+    toast.success('Conversation deleted');
+  } catch (error) {
+    console.error('Error deleting conversation:', error);
+    toast.error('Failed to delete conversation');
+  }
+};
+
+const deleteAllThreads = async () => {
+  if (!threadsData.value) return;
+
+  try {
+    const deletePromises = threadsData.value.threads.map((thread) => deleteThread(thread._id));
+
+    await Promise.all(deletePromises);
+    toast.success('All conversations deleted');
+    showDeleteAllDialog.value = false;
+  } catch (error) {
+    console.error('Error deleting all conversations:', error);
+    toast.error('Failed to delete all conversations');
+  }
+};
+const selectedThreads = ref<string[]>([]);
 const showDeleteDialog = ref(false);
 const showDeleteAllDialog = ref(false);
 
-const hasSelectedConversations = computed(() => selectedConversations.value.length > 0);
+const hasConversations = computed(() => formattedThreads.value.length > 0);
 
-function toggleSelectAll(value: boolean) {
-  if (value) {
-    selectedConversations.value = historyStore.conversations.map((conv) => conv.id);
+function toggleSelectAll(checked: boolean | 'indeterminate') {
+  if (checked === true) {
+    selectedThreads.value = [...new Set([...selectedThreads.value, ...formattedThreads.value.map(thread => thread.id)])];
   } else {
-    selectedConversations.value = [];
+    const threadIds = formattedThreads.value.map(thread => thread.id);
+    selectedThreads.value = selectedThreads.value.filter(id => !threadIds.includes(id));
   }
 }
 
 function toggleSelection(id: string) {
-  const index = selectedConversations.value.indexOf(id);
+  const index = selectedThreads.value.indexOf(id);
   if (index === -1) {
-    selectedConversations.value.push(id);
+    selectedThreads.value.push(id);
   } else {
-    selectedConversations.value.splice(index, 1);
+    selectedThreads.value.splice(index, 1);
   }
 }
 
-function deleteSelected() {
-  selectedConversations.value.forEach((id) => {
-    historyStore.deleteConversation(id);
-  });
-  selectedConversations.value = [];
-  showDeleteDialog.value = false;
+async function deleteSelected() {
+  try {
+    const deletePromises = selectedThreads.value.map((id) => deleteThread(id));
+
+    await Promise.all(deletePromises);
+    selectedThreads.value = [];
+    showDeleteDialog.value = false;
+  } catch (error) {
+    console.error('Error deleting selected conversations:', error);
+    toast.error('Failed to delete selected conversations');
+  }
 }
 
 function exportSelected() {
-  const selectedData = historyStore.conversations.filter((conv) => selectedConversations.value.includes(conv.id));
+  const selectedData = formattedThreads.value.filter((thread) => selectedThreads.value.includes(thread.id));
 
-  // Create a JSON blob and trigger download
-  const dataStr = JSON.stringify(selectedData, null, 2);
+  const exportData = selectedData.map((thread) => ({
+    id: thread.id,
+    title: thread.title,
+    date: thread.date,
+    createdAt: thread.createdAt,
+  }));
+
+  const dataStr = JSON.stringify(exportData, null, 2);
   const dataBlob = new Blob([dataStr], { type: 'application/json' });
   const url = URL.createObjectURL(dataBlob);
 
@@ -99,97 +139,113 @@ function exportSelected() {
       <p class="text-muted-foreground">Manage your chat history and synchronization preferences.</p>
     </div>
 
-    <div class="rounded-lg border p-6">
-      <div class="mb-6 flex items-center justify-between">
-        <h2 class="text-xl font-semibold">Message History</h2>
+    <div class="flex max-h-[70vh] min-h-[400px] flex-col rounded-lg border">
+      <div class="flex-shrink-0 border-b p-6">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xl font-semibold">Message History</h2>
 
-        <div class="flex gap-2" v-if="historyStore.conversations.length > 0">
-          <Button variant="outline" size="sm" :disabled="!hasSelectedConversations" @click="exportSelected">
-            Export Selected
-          </Button>
+          <div v-if="!threadsData" class="text-muted-foreground text-sm">Loading conversations...</div>
+          <div class="flex gap-2" v-else-if="hasConversations">
+            <Button variant="outline" size="sm" :disabled="selectedThreads.length === 0" @click="exportSelected">
+              Export Selected
+            </Button>
 
-          <Dialog v-model:open="showDeleteDialog">
-            <DialogTrigger asChild>
-              <Button variant="destructive" size="sm" :disabled="!hasSelectedConversations"> Delete Selected </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Delete Selected Conversations?</DialogTitle>
-                <DialogDescription>
-                  This will permanently delete {{ selectedConversations.length }} selected conversation(s). This action
-                  cannot be undone.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" @click="showDeleteDialog = false">Cancel</Button>
-                <Button variant="destructive" @click="deleteSelected">Delete</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            <Dialog v-model:open="showDeleteDialog">
+              <DialogTrigger as-child>
+                <Button variant="destructive" size="sm" :disabled="selectedThreads.length === 0"> Delete Selected </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete Selected Conversations?</DialogTitle>
+                  <DialogDescription>
+                    This will permanently delete {{ selectedThreads.length }} selected conversation(s). This action
+                    cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" @click="showDeleteDialog = false">Cancel</Button>
+                  <Button variant="destructive" @click="deleteSelected">Delete</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
-          <Dialog v-model:open="showDeleteAllDialog">
-            <DialogTrigger asChild>
-              <Button variant="destructive" size="sm"> Delete All History </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Delete All Chat History?</DialogTitle>
-                <DialogDescription>
-                  This will permanently delete all your chat history. This action cannot be undone.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline" @click="showDeleteAllDialog = false">Cancel</Button>
-                <Button
-                  variant="destructive"
-                  @click="
-                    () => {
-                      historyStore.deleteAllConversations();
-                      showDeleteAllDialog = false;
-                    }
-                  "
-                >
-                  Delete All
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            <Dialog v-model:open="showDeleteAllDialog">
+              <DialogTrigger as-child>
+                <Button variant="destructive" size="sm"> Delete All History </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete All Chat History?</DialogTitle>
+                  <DialogDescription>
+                    This will permanently delete all your chat history. This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" @click="showDeleteAllDialog = false">Cancel</Button>
+                  <Button variant="destructive" @click="deleteAllThreads"> Delete All </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
 
-      <div v-if="historyStore.conversations.length === 0" class="py-12 text-center">
+      <div v-if="!threadsData" class="flex flex-1 items-center justify-center py-12 text-center">
+        <p class="text-muted-foreground">Loading conversations...</p>
+      </div>
+      <div v-else-if="!hasConversations" class="flex flex-1 items-center justify-center py-12 text-center">
         <p class="text-muted-foreground">No conversation history found.</p>
       </div>
 
-      <div v-else>
-        <div class="mb-2 grid grid-cols-[25px_1fr_150px_100px] gap-4 border-b py-2 font-medium">
-          <div class="flex items-center">
-            <Checkbox
-              :checked="
-                selectedConversations.length === historyStore.conversations.length &&
-                historyStore.conversations.length > 0
-              "
-              @update:checked="toggleSelectAll"
-            />
-          </div>
-          <span>Title</span>
-          <span>Date</span>
-          <span>Messages</span>
+      <div v-else class="flex h-full flex-col overflow-hidden">
+        <div
+          class="bg-background/95 supports-[backdrop-filter]:bg-background/60 flex flex-shrink-0 items-center gap-2 border-b px-6 py-3 backdrop-blur"
+        >
+          <Checkbox
+            :checked="formattedThreads.length > 0 && formattedThreads.every(t => selectedThreads.includes(t.id))"
+            :indeterminate="formattedThreads.some(t => selectedThreads.includes(t.id)) && !formattedThreads.every(t => selectedThreads.includes(t.id))"
+            @update:checked="toggleSelectAll"
+            class="h-4 w-4"
+          />
+          <span class="text-muted-foreground text-sm font-medium">Select all</span>
         </div>
 
-        <Card v-for="conversation in historyStore.conversations" :key="conversation.id" class="mb-2">
-          <CardContent class="grid grid-cols-[25px_1fr_150px_100px] gap-4 py-3">
-            <div class="flex items-center">
-              <Checkbox
-                :checked="selectedConversations.includes(conversation.id)"
-                @update:checked="() => toggleSelection(conversation.id)"
-              />
+        <div class="flex-1 overflow-hidden">
+          <ScrollArea class="h-full w-full">
+            <div class="space-y-1 px-4 py-2">
+              <div>
+                <div
+                  v-for="thread in formattedThreads"
+                  :key="thread.id"
+                  class="hover:bg-accent/50 group relative flex items-center rounded-md p-2"
+                  :class="{ 'bg-accent/30': selectedThreads.includes(thread.id) }"
+                >
+                  <div class="flex w-full items-center gap-3">
+                    <Checkbox
+                      :checked="selectedThreads.includes(thread.id)"
+                      @update:checked="() => toggleSelection(thread.id)"
+                      class="h-4 w-4 flex-shrink-0"
+                    />
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate font-medium">{{ thread.title }}</p>
+                      <div class="text-muted-foreground flex items-center gap-2 text-xs">
+                        <span>{{ thread.date }}</span>
+                        <span>•</span>
+                        <span>{{ thread.messages }} message{{ thread.messages !== 1 ? 's' : '' }}</span>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button variant="ghost" size="icon" class="h-7 w-7" @click.stop="() => deleteThread(thread.id)">
+                        <TrashIcon class="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <span class="truncate">{{ conversation.title }}</span>
-            <span>{{ conversation.date }}</span>
-            <span>{{ conversation.messages }}</span>
-          </CardContent>
-        </Card>
+          </ScrollArea>
+        </div>
       </div>
     </div>
   </div>

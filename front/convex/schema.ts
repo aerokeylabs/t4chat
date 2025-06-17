@@ -59,6 +59,11 @@ export default defineSchema({
     streamerMode: v.boolean(),
     theme: v.string(),
     userId: v.string(),
+    // Customization fields
+    userName: v.optional(v.string()),
+    userOccupation: v.optional(v.string()),
+    userTraits: v.optional(v.array(v.string())),
+    hidePersonalInfo: v.optional(v.boolean()),
   }).index('by_user', ['userId']),
 
   threads: defineTable({

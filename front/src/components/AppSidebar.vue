@@ -2,6 +2,7 @@
 import IconInput from '@/components/IconInput.vue';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Sidebar,
   SidebarContent,
@@ -85,12 +86,13 @@ const threads = computed(() => {
     </div>
   </Teleport>
 
+  <TooltipProvider>
   <Sidebar>
     <SidebarHeader class="flex h-16 items-center justify-center">
       <span>thingy</span>
     </SidebarHeader>
 
-    <SidebarContent class="custom-scrollbar">
+    <SidebarContent class="custom-scrollbar no-horizontal-scroll">
       <SidebarMenuItem class="px-2">
         <RouterLink to="/chat" custom v-slot="{ navigate }">
           <Button variant="outline" class="w-full" @click="navigate">New Chat</Button>
@@ -110,9 +112,22 @@ const threads = computed(() => {
 
         <SidebarMenuItem v-for="thread in group.threads" :key="thread._id">
           <RouterLink :to="`/chat/${thread._id}`" custom v-slot="{ navigate }">
-            <Button variant="ghost" class="w-full justify-start px-2" @click="navigate">
-              {{ thread.title }}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  class="sidebar-button w-full justify-start px-2" 
+                  @click="navigate"
+                >
+                  <span class="truncate-text">
+                  {{ thread.title }}
+                  </span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                {{ thread.title }}
+              </TooltipContent>
+            </Tooltip>
           </RouterLink>
         </SidebarMenuItem>
       </SidebarGroup>
@@ -145,6 +160,7 @@ const threads = computed(() => {
       </div>
     </SidebarFooter>
   </Sidebar>
+  </TooltipProvider>
 </template>
 
 <style>
@@ -155,9 +171,22 @@ const threads = computed(() => {
   left: calc(var(--spacing) * 2);
   height: calc(var(--spacing) * 16);
 
-  z-index: 1000;
-
   display: flex;
-  align-items: center;
+}
+
+.no-horizontal-scroll {
+  overflow-x: hidden;
+}
+
+.sidebar-button {
+  position: relative;
+  display: flex;
+}
+
+.truncate-text {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

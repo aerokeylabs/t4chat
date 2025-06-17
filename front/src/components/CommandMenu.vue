@@ -65,6 +65,8 @@ const debouncedQuery = debouncedRef(query, 150);
 const args = computed(() => ({ query: debouncedQuery.value }));
 
 const { data } = useReactiveQuery(api.threads.getThreads, args);
+
+const searchResults = computed(() => data.value?.threads ?? []);
 </script>
 
 <template>
@@ -92,9 +94,9 @@ const { data } = useReactiveQuery(api.threads.getThreads, args);
           </CommandItem>
         </CommandGroup>
 
-        <CommandGroup v-if="data?.threads != null && data?.threads.length > 0" heading="Threads">
+        <CommandGroup v-if="searchResults.length > 0" heading="Threads">
           <CommandItem
-            v-for="thread in data?.threads ?? []"
+            v-for="thread in searchResults"
             :key="thread._id"
             :value="`/chat/${thread._id}`"
             @select="() => runCommand(`/chat/${thread._id}`)"

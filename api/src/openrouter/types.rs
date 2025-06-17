@@ -174,7 +174,7 @@ pub enum Role {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct MessagePart {
+pub struct Message {
   pub role: Role,
   pub content: String,
 }
@@ -182,7 +182,7 @@ pub struct MessagePart {
 #[derive(Serialize)]
 pub struct CompletionRequest {
   pub model: String,
-  pub messages: Vec<MessagePart>,
+  pub messages: Vec<Message>,
 
   #[serde(skip_serializing_if = "Option::is_none")]
   pub max_tokens: Option<u32>,
@@ -192,13 +192,48 @@ pub struct CompletionRequest {
 
 #[derive(Deserialize)]
 pub struct CompletionChoice {
-  pub message: MessagePart,
+  pub message: Message,
 }
 
 #[derive(Deserialize)]
 pub struct CompletionResponse {
   pub id: String,
   pub choices: Vec<CompletionChoice>,
+}
+
+// endregion
+
+// region: streaming completions
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ChatCompletion {
+  pub choices: Vec<ChatChoice>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ChatChoice {
+  pub delta: ChatDelta,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FinishReason {
+  Stop,
+  Length,
+  ContentFilter,
+  ToolUse,
+  FunctionCall,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+#[serde(rename_all = "snake_case")]
+pub enum ChatDelta {
+  Text { content: String },
+  Finished { finish_reason: String },
+  Refusal { refusal: String },
 }
 
 // endregion

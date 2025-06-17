@@ -9,6 +9,7 @@ use crate::openrouter::types::ListModelsResponse;
 use crate::prelude::*;
 
 pub mod completions;
+pub mod title;
 pub mod types;
 
 pub struct OpenrouterClient {

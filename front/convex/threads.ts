@@ -26,6 +26,10 @@ export const apiGetById = query({
   },
 });
 
+function sortThreads(threads: { lastMessageAt: number }[]) {
+  threads.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+}
+
 export const getThreads = query({
   args: {
     query: v.optional(v.string()),
@@ -36,10 +40,10 @@ export const getThreads = query({
     if (query == null || query.trim() === '') {
       const threads = await ctx.db
         .query('threads')
-        .withIndex('by_user', (q) => q.eq('userId', identity.tokenIdentifier))
+        .withIndex('by_user', (q) => q.eq('userId', identity.tokenIdentifier).eq('visibility', 'visible'))
         .take(256);
 
-      threads.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+      sortThreads(threads);
 
       return { threads };
     }
@@ -51,7 +55,7 @@ export const getThreads = query({
       )
       .take(256);
 
-    threads.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+    sortThreads(threads);
 
     return { threads };
   },
@@ -77,7 +81,7 @@ export const create = mutation({
       lastMessageAt: Date.now(),
       userSetTitle: false,
       title: undefined,
-      visibility: 'visible',
+      visibility: 'hidden',
       pinned: false,
       model,
       branchParent: null,
@@ -191,8 +195,35 @@ export const apiSetTitle = mutation({
     await ctx.db.patch(thread._id, {
       title,
       userSetTitle: false,
+      visibility: 'visible',
     });
 
     return { _id: thread._id };
+  },
+});
+
+export const apiGetMessagesUntil = query({
+  args: {
+    apiKey: v.string(),
+    threadId: v.id('threads'),
+    untilId: v.id('messages'),
+  },
+  async handler(ctx, { apiKey, threadId, untilId }) {
+    validateKey(apiKey);
+
+    const thread = await ctx.db.get(threadId);
+    if (thread == null) return null;
+
+    const until = await ctx.db.get(untilId);
+    if (until?.threadId !== threadId) return null;
+
+    const messages = await ctx.db
+      .query('messages')
+      .withIndex('by_thread', (q) => q.eq('threadId', threadId))
+      .collect();
+
+    messages.sort((a, b) => a._creationTime - b._creationTime);
+
+    return { messages: messages.filter((message) => message._creationTime <= until._creationTime) };
   },
 });

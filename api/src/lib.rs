@@ -6,7 +6,6 @@ pub mod convex;
 pub mod convex_serde;
 pub mod error;
 pub mod logger;
-pub mod openai;
 pub mod openrouter;
 pub mod routes;
 pub mod setup;
@@ -14,6 +13,7 @@ pub mod state;
 pub mod types;
 
 pub mod prelude {
+  pub use anyhow::{Context as _, anyhow, bail};
   pub use axum::Json;
   pub use axum::extract::{Extension, Path, Query, State};
   pub use axum::http::StatusCode;

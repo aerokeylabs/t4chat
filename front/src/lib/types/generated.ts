@@ -5,14 +5,11 @@ export type CancelMessageRequest = { threadId: string };
 export type CancelMessageResponse = { success: boolean };
 
 export type CreateMessageRequest = {
-  messageParts: MessagePartRequest[];
   threadId: string;
   responseMessageId: string;
   model: string;
   modelParams: ModelParamsRequest | null;
 };
-
-export type MessagePartRequest = { type: 'text'; text: string };
 
 export type ModelParamsRequest = { reasoningEffort: string; includeSearch: boolean };
 

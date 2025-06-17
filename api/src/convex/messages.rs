@@ -16,15 +16,28 @@ pub enum MessageStatus {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(tag = "type")]
+pub enum MessagePart {
+  Text { text: String },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Role {
+  User,
+  Assistant,
+  System,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Message {
   #[serde(rename = "_id")]
   pub id: String,
   pub thread_id: String,
-  #[serde(default)]
   pub status: Option<MessageStatus>,
-  // Add any other fields that might be in the response but we don't need to use
-  #[serde(flatten)]
-  pub extra: std::collections::HashMap<String, serde_json::Value>,
+  pub role: Role,
+  pub parts: Vec<MessagePart>,
 }
 
 #[derive(Deserialize)]
@@ -61,7 +74,7 @@ pub async fn get_by_thread_id(client: &mut ConvexClient, thread_id: String) -> R
     BTreeMap::from([("threadId".to_string(), Value::String(thread_id))]),
   )
   .await?;
-  
+
   Ok(response.messages)
 }
 
@@ -109,4 +122,15 @@ pub async fn cancel(client: &mut ConvexClient, message_id: String) -> Result<boo
   let result = convex_mutation::<Option<MessageIdOnly>>(client, CANCEL_MESSAGE, args).await?;
 
   Ok(result.is_some())
+}
+
+pub async fn get_until(client: &mut ConvexClient, thread_id: String, until_id: String) -> Result<Option<Vec<Message>>> {
+  const GET_UNTIL: &str = "messages:apiGetMessagesUntil";
+
+  let args = BTreeMap::from([
+    ("threadId".to_string(), Value::String(thread_id)),
+    ("untilId".to_string(), Value::String(until_id)),
+  ]);
+
+  convex_query(client, GET_UNTIL, args).await
 }

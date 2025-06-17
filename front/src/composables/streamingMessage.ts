@@ -238,12 +238,9 @@ export function useStreamingMessage() {
     onStreamCancelled,
     onStreamFailed,
     isStreaming,
-    // New function for character-by-character interpolation
     addChunk,
-    // Scroll to bottom functionality
     scrollToBottom,
     setMessagesContainer,
-    // Scroll pill functionality
     userHasScrolledUp,
     showScrollToBottomPill,
     resetScrollState,

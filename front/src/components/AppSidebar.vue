@@ -63,8 +63,6 @@ const threads = computed(() => {
   >();
 
   data.value.threads.forEach((thread) => {
-    // skip empty titles to skip uninitialized threads
-    if (thread.title == null) return;
     // Use local timezone for the date
     const threadDate = new Date(thread.createdAt);
     const date = threadDate.toLocaleDateString('en-US'); // Format as local date

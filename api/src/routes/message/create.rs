@@ -1,30 +1,22 @@
 use std::sync::Arc;
 
-use anyhow::bail;
 use axum::http::HeaderMap;
 use axum::response::Sse;
 use axum::response::sse::Event;
 use futures::{Stream, StreamExt, pin_mut};
-use reqwest_eventsource::{Error as EventSourceError, Event as EventSourceEvent, EventSource};
-use stream_cancel::{Trigger, Valved};
 use tokio::sync::{Mutex, mpsc};
 
-use crate::convex::messages::{CompleteMessageArgs, Message, MessageStatus, ModelParams};
+use crate::convex::messages::{
+  CompleteMessageArgs, Message as ConvexMessage, MessagePart, MessageStatus, ModelParams, Role as ConvexRole,
+};
 use crate::convex::threads::Thread;
 use crate::convex::{ConvexClient, ConvexError, messages, threads};
 use crate::convex_serde;
-use crate::openai::{ChatCompletion, ChatDelta};
-use crate::openrouter::completions::{get_completions, stream_completions};
-use crate::openrouter::types::{MessagePart, Role};
+use crate::openrouter::completions::{OpenrouterEvent, stream_completions, stream_openrouter_chat};
+use crate::openrouter::title::generate_title_from_content;
+use crate::openrouter::types::{ChatDelta, Message, Role};
 use crate::openrouter::{OpenrouterClient, OpenrouterError};
 use crate::prelude::*;
-
-#[derive(Debug, Deserialize, Type)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum MessagePartRequest {
-  #[serde(rename = "text")]
-  Text { text: String },
-}
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -36,11 +28,9 @@ pub struct ModelParamsRequest {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMessageRequest {
-  pub message_parts: Vec<MessagePartRequest>,
   pub thread_id: String,
   pub response_message_id: String,
   pub model: String,
-  // pub convex_session_id: String,
   pub model_params: Option<ModelParamsRequest>,
 }
 
@@ -58,8 +48,6 @@ pub enum CreateMessageError {
   Serialization(#[from] convex_serde::SerError),
   #[error("failed to get response message: {0}")]
   Convex(#[from] ConvexError),
-  #[error("empty message parts")]
-  EmptyMessageParts,
   #[error("no model specified")]
   NoModelSpecified,
 }
@@ -69,7 +57,6 @@ into_response!(
     MessageNotFound => StatusCode::NOT_FOUND,
     ThreadNotFound => StatusCode::NOT_FOUND,
     ResponseMessageNotPending => StatusCode::BAD_REQUEST,
-    EmptyMessageParts => StatusCode::BAD_REQUEST,
     NoModelSpecified => StatusCode::BAD_REQUEST,
     Unexpected(_) => StatusCode::INTERNAL_SERVER_ERROR,
     Serialization(_) => StatusCode::INTERNAL_SERVER_ERROR,
@@ -79,120 +66,136 @@ into_response!(
 
 struct ChatContext {
   model: String,
-  message: Message,
+  message: ConvexMessage,
   thread: Thread,
   complete_args: CompleteMessageArgs,
   custom_key: Option<String>,
   set_title: bool,
-  user_message: String,
+  messages: Vec<Message>,
 }
 
-pub enum OpenrouterEvent {
-  Completion(ChatCompletion),
-  Error,
-  Unauthorized,
-}
-
-const TITLE_GENERATION_SYSTEM_MESSAGE: &str = "You are a helpful assistant that generates concise, descriptive titles based on the user's messages. Create a short, one-line title (maximum 50 characters) that summarizes the main topic or question. Respond with only the title, without any additional text or formatting. Do not include quotes, backticks, or any other characters around the title. The title should be clear and relevant to the content provided.";
-const TITLE_GENERATION_MODEL: &str = "anthropic/claude-3-haiku";
-
-async fn generate_title_from_content(
-  openrouter: Arc<Mutex<OpenrouterClient>>,
-  thread_id: String,
-  content: &str,
-  custom_key: Option<String>,
-) -> anyhow::Result<String> {
-  info!("Generating title for thread: {}", thread_id);
-  info!("Content for title generation: {}", content);
-
-  let system_message = MessagePart {
-    role: Role::System,
-    content: TITLE_GENERATION_SYSTEM_MESSAGE.to_string(),
+fn message_to_part(message: ConvexMessage) -> Message {
+  let role = match message.role {
+    ConvexRole::User => Role::User,
+    ConvexRole::Assistant => Role::Assistant,
+    ConvexRole::System => Role::System,
   };
 
-  let user_message = MessagePart {
-    role: Role::User,
-    content: content.to_string(),
-  };
-
-  let messages = vec![system_message, user_message];
-
-  let completions = get_completions(openrouter, TITLE_GENERATION_MODEL, messages, custom_key, Some(50)).await?;
-
-  let title = completions
-    .choices
+  let content = message
+    .parts
     .into_iter()
-    .map(|choice| choice.message.content.to_string())
-    .collect::<Vec<_>>()
-    .join("");
+    .map(|part| match part {
+      MessagePart::Text { text } => text,
+    })
+    .collect();
 
-  let final_title = title
-    .trim()
-    .trim_matches(|c| c == '"' || c == '\'' || c == '`')
-    .to_string();
+  Message { role, content }
+}
 
-  if final_title.is_empty() {
-    bail!("Generated title is empty for thread: {}", thread_id);
+#[tracing::instrument("create message", skip(state), err)]
+#[axum::debug_handler]
+pub async fn create_message(
+  State(state): State<AppState>,
+  headers: HeaderMap,
+  Json(payload): Json<CreateMessageRequest>,
+) -> Result<Sse<impl Stream<Item = Result<Event, CreateMessageError>>>, CreateMessageError> {
+  debug!("creating chat with payload: {:?}", payload);
+
+  let message_id = payload.response_message_id.trim();
+  if message_id.is_empty() {
+    return Err(CreateMessageError::MessageNotFound);
   }
 
-  Ok(final_title)
-}
+  let thread_id = payload.thread_id.trim();
+  if thread_id.is_empty() {
+    return Err(CreateMessageError::ThreadNotFound);
+  }
 
-#[tracing::instrument("stream openrouter chat", skip_all, err)]
-async fn stream_openrouter_chat(
-  source: EventSource,
-  using_custom_key: bool,
-) -> Result<(Trigger, impl Stream<Item = OpenrouterEvent>), anyhow::Error> {
-  let stream = async_stream::stream! {
-    for await value in source {
-      match value {
-        Ok(EventSourceEvent::Message(data)) => {
-          if data.data == "[DONE]" || data.data.is_empty() {
-            continue;
-          }
+  let response_message_id = payload.response_message_id.trim();
+  if response_message_id.is_empty() {
+    return Err(CreateMessageError::MessageNotFound);
+  }
 
-          if !data.data.starts_with("{") {
-            warn!("Received non-JSON data from OpenRouter: {}", data.data);
-            continue;
-          }
+  let model = payload.model.trim();
+  if model.is_empty() {
+    return Err(CreateMessageError::NoModelSpecified);
+  }
 
-          match serde_json::from_str(&data.data) {
-            Ok(parsed) => yield OpenrouterEvent::Completion(parsed),
-            Err(err) => {
-              error!("Failed to parse OpenRouter response: {err:?}");
-              yield OpenrouterEvent::Error;
-            },
-          }
-        },
-        Err(EventSourceError::StreamEnded) => {
-          break;
-        },
-        Err(EventSourceError::InvalidStatusCode(StatusCode::UNAUTHORIZED, _)) if using_custom_key => {
-          yield OpenrouterEvent::Unauthorized;
-        },
-        Err(EventSourceError::InvalidStatusCode(_, response)) => {
-          let body = response.text().await.unwrap_or_else(|_| "No body".to_string());
-          error!("Invalid status code in OpenRouter response: {body:?}");
-          yield OpenrouterEvent::Error;
-        },
-        Err(EventSourceError::InvalidContentType(_, response)) => {
-          let body = response.text().await.unwrap_or_else(|_| "No body".to_string());
-          error!("Invalid content type in OpenRouter response: {body:?}");
-          yield OpenrouterEvent::Error;
-        },
-        Err(err) => {
-          error!("Stream error: {err:?}");
-          yield OpenrouterEvent::Error;
-          break;
-        },
-        _ => {},
-      }
-    }
+  let custom_key = headers
+    .get("X-OpenRouter-Key")
+    .and_then(|value| value.to_str().ok())
+    .map(|s| s.to_string());
+
+  let mut convex = state.convex.clone();
+
+  let Some(thread) = threads::get_by_id(&mut convex, thread_id.to_string()).await? else {
+    return Err(CreateMessageError::ThreadNotFound);
   };
 
-  let (trigger, stream) = Valved::new(stream);
+  let Some(message) = messages::get_by_id(&mut convex, response_message_id.to_string()).await? else {
+    return Err(CreateMessageError::MessageNotFound);
+  };
 
-  Ok((trigger, stream))
+  if message.status.as_ref() != Some(&MessageStatus::Pending) {
+    return Err(CreateMessageError::ResponseMessageNotPending);
+  }
+
+  let Some(messages) = messages::get_until(&mut convex, thread.id.clone(), message.id.clone()).await? else {
+    return Err(CreateMessageError::MessageNotFound);
+  };
+
+  let messages = messages.into_iter().map(message_to_part).collect();
+
+  let complete_args = CompleteMessageArgs {
+    message_id: message.id.clone(),
+    model: payload.model.clone(),
+    model_params: payload.model_params.as_ref().map(|params| ModelParams {
+      reasoning_effort: params.reasoning_effort.clone(),
+      include_search: params.include_search,
+    }),
+  };
+
+  let (text_tx, mut chat_rx) = mpsc::channel(128);
+  let (kill_tx, kill_rx) = mpsc::channel(1);
+
+  state.active_threads.lock().await.insert(thread.id.clone(), kill_tx);
+
+  let set_title = thread.title.is_none();
+
+  let openrouter = state.openrouter.clone();
+  let convex_client = state.convex.clone();
+  let active_threads = state.active_threads.clone();
+  let thread_id = thread.id.clone();
+
+  let context = ChatContext {
+    model: model.to_string(),
+    message,
+    thread,
+    complete_args,
+    custom_key,
+    set_title,
+    messages,
+  };
+
+  tokio::spawn(async move {
+    let result = stream_chat(openrouter, convex_client, text_tx, kill_rx, context).await;
+
+    active_threads.lock().await.remove(&thread_id);
+
+    if let Err(err) = result {
+      error!("Failed to stream chat: {:?}", err);
+    }
+  });
+
+  let stream = async_stream::stream! {
+    while let Some(event) = chat_rx.recv().await {
+      yield Ok(Event::default().data(event.into_string()).event("message"))
+    }
+
+    yield Ok(Event::default().event("end"));
+  };
+
+  Ok(Sse::new(stream))
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -243,19 +246,12 @@ async fn stream_chat(
   mut kill_rx: mpsc::Receiver<()>,
   context: ChatContext,
 ) -> Result<(), StreamChatError> {
-  let user_message = context.user_message.clone();
-
-  let user_message = MessagePart {
-    role: Role::User,
-    content: user_message,
-  };
-
   let using_custom_key = context.custom_key.is_some();
 
   let source = stream_completions(
     openrouter.clone(),
     &context.model,
-    vec![user_message],
+    context.messages,
     context.custom_key.clone(),
     None,
   )
@@ -366,137 +362,21 @@ async fn stream_chat(
   }
 
   if context.set_title {
-    let thread_messages = messages::get_by_thread_id(&mut convex_client, context.thread.id.clone()).await?;
+    let messages = messages::get_by_thread_id(&mut convex_client, context.thread.id.clone()).await?;
 
-    if thread_messages.len() <= 2 {
-      let thread_id = context.thread.id.clone();
-      let user_message = context.user_message.clone();
+    let messages = messages.into_iter().map(message_to_part).collect::<Vec<_>>();
 
-      let title = generate_title_from_content(openrouter, thread_id.clone(), &user_message, context.custom_key)
-        .await
-        .unwrap_or_else(|_| "Chat Conversation".to_string());
+    let title = generate_title_from_content(openrouter, context.thread.id.clone(), messages, context.custom_key)
+      .await
+      .unwrap_or_else(|_| "Chat Conversation".to_string());
 
-      info!("Setting thread title to: {}", title);
+    info!("Setting thread title to: {}", title);
 
-      let success = threads::set_title(&mut convex_client, thread_id, title).await?;
-      if !success {
-        return Err(StreamChatError::SetThreadTitle);
-      }
+    let success = threads::set_title(&mut convex_client, context.thread.id, title).await?;
+    if !success {
+      return Err(StreamChatError::SetThreadTitle);
     }
   }
 
   Ok(())
-}
-
-#[tracing::instrument("create message", skip(state), err)]
-#[axum::debug_handler]
-pub async fn create_message(
-  State(state): State<AppState>,
-  headers: HeaderMap,
-  Json(payload): Json<CreateMessageRequest>,
-) -> Result<Sse<impl Stream<Item = Result<Event, CreateMessageError>>>, CreateMessageError> {
-  debug!("creating chat with payload: {:?}", payload);
-
-  let message_id = payload.response_message_id.trim();
-  if message_id.is_empty() {
-    return Err(CreateMessageError::MessageNotFound);
-  }
-
-  let thread_id = payload.thread_id.trim();
-  if thread_id.is_empty() {
-    return Err(CreateMessageError::ThreadNotFound);
-  }
-
-  let response_message_id = payload.response_message_id.trim();
-  if response_message_id.is_empty() {
-    return Err(CreateMessageError::MessageNotFound);
-  }
-
-  if payload.message_parts.is_empty() {
-    return Err(CreateMessageError::EmptyMessageParts);
-  }
-
-  let model = payload.model.trim();
-  if model.is_empty() {
-    return Err(CreateMessageError::NoModelSpecified);
-  }
-
-  let custom_key = headers
-    .get("X-OpenRouter-Key")
-    .and_then(|value| value.to_str().ok())
-    .map(|s| s.to_string());
-
-  let mut convex = state.convex.clone();
-
-  let Some(thread) = threads::get_by_id(&mut convex, thread_id.to_string()).await? else {
-    return Err(CreateMessageError::ThreadNotFound);
-  };
-
-  let Some(message) = messages::get_by_id(&mut convex, response_message_id.to_string()).await? else {
-    return Err(CreateMessageError::MessageNotFound);
-  };
-
-  if message.status.as_ref() != Some(&MessageStatus::Pending) {
-    return Err(CreateMessageError::ResponseMessageNotPending);
-  }
-
-  let complete_args = CompleteMessageArgs {
-    message_id: message.id.clone(),
-    model: payload.model.clone(),
-    model_params: payload.model_params.as_ref().map(|params| ModelParams {
-      reasoning_effort: params.reasoning_effort.clone(),
-      include_search: params.include_search,
-    }),
-  };
-
-  let (text_tx, mut chat_rx) = mpsc::channel(128);
-  let (kill_tx, kill_rx) = mpsc::channel(1);
-
-  state.active_threads.lock().await.insert(thread.id.clone(), kill_tx);
-
-  let set_title = thread.title.is_none();
-
-  let user_message = payload
-    .message_parts
-    .into_iter()
-    .map(|part| match part {
-      MessagePartRequest::Text { text } => text,
-    })
-    .collect::<Vec<_>>()
-    .join(" ");
-
-  let openrouter = state.openrouter.clone();
-  let convex_client = state.convex.clone();
-  let active_threads = state.active_threads.clone();
-  let thread_id = thread.id.clone();
-
-  let context = ChatContext {
-    model: model.to_string(),
-    message,
-    thread,
-    complete_args,
-    custom_key,
-    set_title,
-    user_message,
-  };
-
-  tokio::spawn(async move {
-    let result = stream_chat(openrouter, convex_client, text_tx, kill_rx, context).await;
-
-    active_threads.lock().await.remove(&thread_id);
-
-    if let Err(err) = result {
-      error!("Failed to stream chat: {:?}", err);
-    }
-  });
-
-  let stream = async_stream::stream! {
-    while let Some(event) = chat_rx.recv().await {
-      yield Ok(Event::default().data(event.into_string()).event("message"))
-    }
-
-    yield Ok(Event::default().event("end"));
-  };
-
-  Ok(Sse::new(stream))
 }

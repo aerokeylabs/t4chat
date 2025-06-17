@@ -99,7 +99,6 @@ async function onSend(message: string) {
       eventSource = apiPostSse<CreateMessageRequest>(Routes.message(), {
         threadId: threadId.value,
         responseMessageId: result.assistantMessageId,
-        messageParts: [{ type: 'text', text: message }],
         model: selected.model.id,
         modelParams,
       });
@@ -117,7 +116,6 @@ async function onSend(message: string) {
       eventSource = apiPostSse<CreateMessageRequest>(Routes.message(), {
         threadId: thread.threadId,
         responseMessageId: thread.assistantMessageId,
-        messageParts: [{ type: 'text', text: message }],
         model: selected.model.id,
         modelParams,
       });

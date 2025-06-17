@@ -125,7 +125,7 @@ pub async fn cancel(client: &mut ConvexClient, message_id: String) -> Result<boo
 }
 
 pub async fn get_until(client: &mut ConvexClient, thread_id: String, until_id: String) -> Result<Option<Vec<Message>>> {
-  const GET_UNTIL: &str = "messages:apiGetMessagesUntil";
+  const GET_UNTIL: &str = "threads:apiGetMessagesUntil";
 
   let args = BTreeMap::from([
     ("threadId".to_string(), Value::String(thread_id)),

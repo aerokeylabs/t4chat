@@ -137,7 +137,14 @@ async function onSend(message: string) {
 
     eventSource.addEventListener('message', (event: SSEvent) => {
       // event.data format is 'type:value'
-      const [type, value] = event.data.split(':', 2) as ChatEvent;
+      const i = event.data.indexOf(':');
+
+      if (i === -1) {
+        console.error('Invalid SSE message format:', event.data);
+        return;
+      }
+
+      const [type, value] = [event.data.slice(0, i), event.data.slice(i + 1)] as ChatEvent;
 
       switch (type) {
         case '0': {

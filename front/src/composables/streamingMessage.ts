@@ -15,8 +15,12 @@ let scrollEventListener: (() => void) | null = null;
 // For character-by-character interpolation
 const pendingChunks = ref<string[]>([]);
 const isInterpolating = ref(false);
+
 let interpolationInterval: number | null = null;
-const INTERPOLATION_SPEED = 2; // ms between characters
+
+const BASE_INTERPOLATION_SPEED = 2; // Base ms between characters
+const MIN_INTERPOLATION_SPEED = 0.5; // Minimum ms between characters
+const MAX_PENDING_CHUNKS = 10; // Maximum pending chunks before direct append
 
 export function useStreamingMessage() {
   // Clean up event listener when component is unmounted
@@ -26,6 +30,7 @@ export function useStreamingMessage() {
       scrollEventListener = null;
     }
   });
+
   /**
    * Reset scroll tracking state when user sends a message
    */
@@ -51,6 +56,10 @@ export function useStreamingMessage() {
   }
 
   function onStreamCompleted() {
+    // debug write data to console
+    console.debug('Stream completed:', {
+      message: message.value,
+    });
     completed.value = true;
     cancelled.value = false;
     failed.value = false;
@@ -110,13 +119,28 @@ export function useStreamingMessage() {
   function addChunk(chunk: string) {
     if (chunk.length === 0) return;
 
-    // Add the new chunk to the pending queue
     // replace \\n with actual newline
-    pendingChunks.value.push(chunk.replace(/\\n/g, '\n'));
+    const processedChunk = chunk.replace(/\\n/g, '\n');
 
-    // Start interpolation if not already running
-    if (!isInterpolating.value) {
-      startInterpolation();
+    // If we have too many pending chunks, append directly and clear the queue
+    if (pendingChunks.value.length >= MAX_PENDING_CHUNKS) {
+      if (interpolationInterval !== null) {
+        clearInterval(interpolationInterval);
+        interpolationInterval = null;
+      }
+
+      // Append all pending chunks directly
+      message.value += pendingChunks.value.join('') + processedChunk;
+      pendingChunks.value = [];
+      isInterpolating.value = false;
+    } else {
+      // Add the new chunk to the pending queue
+      pendingChunks.value.push(processedChunk);
+
+      // Start interpolation if not already running
+      if (!isInterpolating.value) {
+        startInterpolation();
+      }
     }
 
     if (!userHasScrolledUp.value) {
@@ -133,30 +157,37 @@ export function useStreamingMessage() {
     if (isInterpolating.value || pendingChunks.value.length === 0) return;
 
     isInterpolating.value = true;
-    let currentChunk = pendingChunks.value[0];
-    let charIndex = 0;
 
     interpolationInterval = window.setInterval(() => {
-      if (charIndex < currentChunk.length) {
-        // Add next character
-        message.value += currentChunk[charIndex];
-        charIndex++;
-      } else {
-        // Current chunk is done, remove it from the queue
-        pendingChunks.value.shift();
-
-        // If there are more chunks, start on the next one
-        if (pendingChunks.value.length > 0) {
-          currentChunk = pendingChunks.value[0];
-          charIndex = 0;
-        } else {
-          // No more chunks, stop interpolation
-          isInterpolating.value = false;
-          clearInterval(interpolationInterval as number);
-          interpolationInterval = null;
-        }
+      if (pendingChunks.value.length === 0) {
+        isInterpolating.value = false;
+        clearInterval(interpolationInterval as number);
+        interpolationInterval = null;
+        return;
       }
-    }, INTERPOLATION_SPEED);
+
+      let currentChunk = pendingChunks.value[0];
+
+      // Adjust speed based on number of pending chunks
+      const currentSpeed = Math.max(
+        MIN_INTERPOLATION_SPEED,
+        BASE_INTERPOLATION_SPEED - pendingChunks.value.length * 0.2,
+      );
+
+      // Process multiple characters per tick when we have many pending chunks
+      const charsToProcess = Math.ceil(BASE_INTERPOLATION_SPEED / currentSpeed);
+
+      // Add the entire chunk at once if it's small enough
+      if (currentChunk.length <= charsToProcess) {
+        message.value += currentChunk;
+        pendingChunks.value.shift();
+      } else {
+        // Otherwise process a portion of the chunk
+        const portion = currentChunk.slice(0, charsToProcess);
+        message.value += portion;
+        pendingChunks.value[0] = currentChunk.slice(charsToProcess);
+      }
+    }, BASE_INTERPOLATION_SPEED);
   }
 
   const isStreaming = computed(() => !completed.value && !cancelled.value && !failed.value);

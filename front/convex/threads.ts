@@ -224,6 +224,6 @@ export const apiGetMessagesUntil = query({
 
     messages.sort((a, b) => a._creationTime - b._creationTime);
 
-    return { messages: messages.filter((message) => message._creationTime <= until._creationTime) };
+    return messages.filter((message) => message._creationTime <= until._creationTime);
   },
 });

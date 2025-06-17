@@ -13,8 +13,8 @@ export default defineSchema({
           filename: v.string(),
           mimeType: v.string(),
           size: v.number(),
-        })
-      )
+        }),
+      ),
     ),
     attachmentIds: v.array(v.any()),
     attachments: v.array(v.any()),

@@ -13,7 +13,7 @@ import { computed, nextTick, ref, useTemplateRef } from 'vue';
 const selected = useSelectedModel();
 
 const emit = defineEmits<{
-  (e: 'send', message: string, encodedFiles?: Array<{name: string, type: string, size: number, data: string}>): void;
+  (e: 'send', message: string, encodedFiles?: Array<{ name: string; type: string; size: number; data: string }>): void;
   (e: 'cancel'): void;
 }>();
 
@@ -44,9 +44,9 @@ async function encodeFileAsBase64(file: File): Promise<string> {
 }
 
 // Process files for sending
-async function prepareFilesForSend(): Promise<Array<{name: string, type: string, size: number, data: string}>> {
+async function prepareFilesForSend(): Promise<Array<{ name: string; type: string; size: number; data: string }>> {
   const encodedFiles = [];
-  
+
   for (const file of selectedFiles.value) {
     try {
       const base64Data = await encodeFileAsBase64(file);
@@ -54,14 +54,14 @@ async function prepareFilesForSend(): Promise<Array<{name: string, type: string,
         name: file.name,
         type: file.type,
         size: file.size,
-        data: base64Data
+        data: base64Data,
       });
     } catch (error) {
       console.error('Failed to encode file:', file.name, error);
       // Continue with other files
     }
   }
-  
+
   return encodedFiles;
 }
 
@@ -72,7 +72,7 @@ async function send() {
     cancel();
   }
 
-  let encodedFiles: Array<{name: string, type: string, size: number, data: string}> = [];
+  let encodedFiles: Array<{ name: string; type: string; size: number; data: string }> = [];
   if (selectedFiles.value.length > 0) {
     // Show some loading state if needed
     encodedFiles = await prepareFilesForSend();
@@ -142,7 +142,7 @@ function formatFileSize(bytes: number): string {
   <div class="chatbox">
     <div>
       <textarea ref="textarea" v-model="message" placeholder="Type your message here..."></textarea>
-      
+
       <!-- File attachments display -->
       <div v-if="selectedFiles.length > 0" class="file-attachments">
         <div v-for="(file, index) in selectedFiles" :key="index" class="file-attachment">
@@ -166,7 +166,7 @@ function formatFileSize(bytes: number): string {
               <ChevronDownIcon class="mt-0.5 size-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent class="flex w-min flex-col gap-2 p-2 bg-background" align="start">
+          <PopoverContent class="bg-background flex w-min flex-col gap-2 p-2" align="start">
             <ModelSelect />
           </PopoverContent>
         </Popover>
@@ -179,13 +179,7 @@ function formatFileSize(bytes: number): string {
         <Button variant="outline" size="icon-sm" @click="handleFileSelect">
           <span class="sr-only">Add attachment</span>
           <PaperclipIcon class="size-4" />
-          <input
-            ref="fileInput"
-            type="file"
-            class="hidden"
-            multiple
-            @change="onFileInputChange"
-          />
+          <input ref="fileInput" type="file" class="hidden" multiple @change="onFileInputChange" />
         </Button>
       </div>
 

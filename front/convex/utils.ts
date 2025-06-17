@@ -41,5 +41,5 @@ export const messagePartValidator = v.union(
     filename: v.string(),
     mimeType: v.string(),
     size: v.number(),
-  })
+  }),
 );

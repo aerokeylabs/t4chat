@@ -66,12 +66,16 @@ export const create = mutation({
     message: v.string(),
     model: v.string(),
     modelParams: modelParamsValidator,
-    files: v.optional(v.array(v.object({
-      name: v.string(),
-      size: v.number(),
-      type: v.string(),
-      data: v.string(), // base64 encoded data
-    }))),
+    files: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          size: v.number(),
+          type: v.string(),
+          data: v.string(), // base64 encoded data
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const identity = await getIdentity(ctx);
@@ -96,12 +100,12 @@ export const create = mutation({
 
     // Prepare message parts
     const parts: any[] = [];
-    
+
     // Add text message if not empty
     if (message.trim() !== '') {
       parts.push({ text: message, type: 'text' });
     }
-    
+
     // Add file attachments if any
     if (files && files.length > 0) {
       for (const file of files) {
@@ -148,12 +152,16 @@ export const createMessage = mutation({
     messageParts: v.array(messagePartValidator),
     model: v.string(),
     modelParams: modelParamsValidator,
-    files: v.optional(v.array(v.object({
-      name: v.string(),
-      size: v.number(),
-      type: v.string(),
-      data: v.string(), // base64 encoded data
-    }))),
+    files: v.optional(
+      v.array(
+        v.object({
+          name: v.string(),
+          size: v.number(),
+          type: v.string(),
+          data: v.string(), // base64 encoded data
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     const identity = await getIdentity(ctx);
@@ -164,10 +172,10 @@ export const createMessage = mutation({
     const threadId = thread._id;
 
     const userId = (await ctx.auth.getUserIdentity())?.tokenIdentifier ?? 'null';
-    
+
     // Prepare message parts
     let messageParts = [...args.messageParts];
-    
+
     // Add file attachments if any
     if (args.files && args.files.length > 0) {
       for (const file of args.files) {
@@ -227,7 +235,7 @@ export const deleteThreadById = mutation({
       .query('messages')
       .withIndex('by_thread', (q) => q.eq('threadId', threadId))
       .collect();
-    
+
     for (const message of messages) {
       await ctx.db.delete(message._id);
     }

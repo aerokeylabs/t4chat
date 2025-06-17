@@ -125,7 +125,7 @@ const threads = computed(() => {
 
   // Create result with Pinned section first if there are pinned threads
   const result = [];
-  
+
   if (pinnedThreads.length > 0) {
     result.push({
       date: 'Pinned',
@@ -145,7 +145,7 @@ const threads = computed(() => {
     }),
     threads,
   }));
-  
+
   return [...result, ...dateGroups];
 });
 
@@ -231,19 +231,19 @@ const isOnNewPage = computed(() => {
                     {{ thread.title }}
                   </span>
                   <div class="action-buttons">
-                    <Button 
-                      variant="ghost" 
-                      size="icon-sm" 
-                      class="pin-button" 
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      class="pin-button"
                       @click="(e) => togglePinThread(thread, e)"
                     >
                       <PinIcon v-if="!thread.pinned" class="h-4 w-4" />
                       <PinOffIcon v-else class="h-4 w-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon-sm" 
-                      class="delete-button" 
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      class="delete-button"
                       @click="(e) => deleteThread(thread._id, e)"
                     >
                       <TrashIcon class="h-4 w-4" />
@@ -342,7 +342,7 @@ const isOnNewPage = computed(() => {
   display: flex;
   overflow: hidden;
   align-items: center;
-  
+
   .thread-title {
     display: block;
     white-space: nowrap;
@@ -353,7 +353,7 @@ const isOnNewPage = computed(() => {
     text-align: left;
     max-width: 100%;
   }
-  
+
   .action-buttons {
     position: absolute;
     right: 8px;
@@ -365,31 +365,32 @@ const isOnNewPage = computed(() => {
     padding-left: 4px;
     background-color: transparent;
   }
-  
+
   &:hover {
     .action-buttons {
       transform: translateX(0);
     }
-    
+
     .thread-title {
       max-width: calc(100% - 70px);
     }
   }
-  
-  .delete-button, .pin-button {
+
+  .delete-button,
+  .pin-button {
     opacity: 0;
     transition: opacity 0.2s ease;
   }
-  
-  &:hover .delete-button, 
+
+  &:hover .delete-button,
   &:hover .pin-button {
     opacity: 0.7;
   }
-  
+
   .delete-button:hover {
     color: var(--destructive-foreground);
   }
-  
+
   .pin-button:hover {
     color: var(--chart-4);
   }
@@ -397,13 +398,9 @@ const isOnNewPage = computed(() => {
 
 .delete-button {
   transition: opacity 0.2s ease;
-  
+
   &:hover {
     color: var(--destructive);
   }
 }
-
-
-
-
 </style>

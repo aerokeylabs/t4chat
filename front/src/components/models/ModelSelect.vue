@@ -4,10 +4,10 @@ import { Button } from '@/components/ui/button';
 import { useQuery, useReactiveQuery } from '@/composables/convex';
 import { useSelectedModel } from '@/composables/selectedModel';
 import { api } from '@/convex/_generated/api';
-import { displayModelName } from '@/lib/utils';
 import { debouncedRef } from '@vueuse/core';
 import { SearchIcon } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
+import ModelListItem from './ModelListItem.vue';
 
 const selected = useSelectedModel();
 function selectModel(slug: string) {
@@ -32,19 +32,25 @@ const displayedModels = computed(() => (hasQuery.value ? searchResults.value : f
       <SearchIcon />
     </IconInput>
 
-    <div class="model-select-inner bg-sidebar">
-      <Button v-if="!hasQuery && selected.model != null" variant="ghost" class="bg-secondary w-full justify-start">
-        {{ displayModelName(selected.model.name) }}
+    <div class="model-select-inner">
+      <Button
+        v-if="!hasQuery && selected.model != null"
+        variant="ghost"
+        size="xl"
+        class="bg-secondary w-full justify-between"
+      >
+        <ModelListItem :model="selected.model" />
       </Button>
 
-      <template v-for="m in displayedModels" :key="m.id">
+      <template v-for="model in displayedModels" :key="model.id">
         <Button
           variant="ghost"
-          class="w-full justify-start"
-          :class="{ 'bg-secondary': selected.slug === m.slug }"
-          @click="selectModel(m.slug)"
+          size="xl"
+          class="w-full justify-between"
+          :class="{ 'bg-secondary': selected.slug === model.slug }"
+          @click="selectModel(model.slug)"
         >
-          {{ displayModelName(m.name) }}
+          <ModelListItem :model />
         </Button>
       </template>
     </div>
@@ -57,8 +63,8 @@ const displayedModels = computed(() => (hasQuery.value ? searchResults.value : f
   flex-direction: column;
   gap: calc(var(--spacing) * 2);
 
-  height: 480px;
-  width: 360px;
+  height: 570px;
+  width: 420px;
 
   .model-select-inner {
     min-height: 0;

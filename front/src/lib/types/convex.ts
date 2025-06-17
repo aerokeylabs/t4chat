@@ -47,3 +47,16 @@ export type AssistantMessage = BaseMessage & {
 };
 
 export type Message = UserMessage | AssistantMessage;
+
+export type Model = {
+  _id: Id<'models'>;
+  _creationTime: number;
+  featured?: boolean;
+  id: string;
+  slug: string;
+  name: string;
+  description: string;
+  image: boolean;
+  reasoning: boolean;
+  speed: number;
+};

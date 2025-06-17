@@ -1,7 +1,6 @@
 use anyhow::Context;
 use axum::http::header::AUTHORIZATION;
 use axum::http::{HeaderMap, HeaderValue};
-use openai_api_rs::v1::api::OpenAIClient;
 use reqwest::{Client, Method, RequestBuilder, StatusCode, Url};
 use secrecy::ExposeSecret;
 
@@ -9,17 +8,19 @@ use crate::config::OpenrouterConfig;
 use crate::openrouter::types::ListModelsResponse;
 use crate::prelude::*;
 
+pub mod completions;
 pub mod types;
 
 pub struct OpenrouterClient {
   pub base_url: Url,
   pub model_base_url: Url,
-  pub openai: OpenAIClient,
-  pub http: Client,
+  pub client: Client,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum OpenrouterError {
+  #[error("failed to build request: {0}")]
+  BuildRequest(#[from] anyhow::Error),
   #[error("failed to send request: {0}")]
   Request(#[from] reqwest::Error),
   #[error("response not ok ({0}): {1:?}")]
@@ -38,7 +39,7 @@ impl OpenrouterClient {
     let client = if let Some(custom_key) = custom_key {
       &create_http_client(&custom_key).context("failed to create HTTP client with custom API key")?
     } else {
-      &self.http
+      &self.client
     };
 
     let builder = client.request(method, self.base_url.join(path)?);
@@ -47,7 +48,7 @@ impl OpenrouterClient {
   }
 
   fn model_request_builder(&self, method: Method, path: &str) -> anyhow::Result<RequestBuilder> {
-    Ok(self.http.request(method, self.model_base_url.join(path)?))
+    Ok(self.client.request(method, self.model_base_url.join(path)?))
   }
 
   pub async fn get_models(&self) -> Result<ListModelsResponse, OpenrouterError> {
@@ -82,21 +83,11 @@ pub fn create_http_client(api_key: &str) -> anyhow::Result<Client> {
 pub fn create_openrouter_client(config: &OpenrouterConfig) -> anyhow::Result<OpenrouterClient> {
   let api_key = config.api_key.expose_secret();
 
-  // unwrap because build function just cant fail yet returns
-  // result<client, box<dyn Error>> for some reason
-  let openai = OpenAIClient::builder()
-    .with_endpoint(config.api_url.clone())
-    .with_api_key(api_key)
-    .with_header("api-key", api_key)
-    .build()
-    .unwrap();
-
-  let http = create_http_client(api_key).context("failed to create HTTP client for Openrouter")?;
+  let client = create_http_client(api_key).context("failed to create HTTP client for Openrouter")?;
 
   Ok(OpenrouterClient {
     base_url: config.api_url.clone(),
     model_base_url: config.model_api_url.clone(),
-    openai,
-    http,
+    client,
   })
 }

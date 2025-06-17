@@ -33,7 +33,6 @@ const modelValue = useVModel(props, 'modelValue', emits, {
   position: relative;
 
   width: 100%;
-  max-width: var(--container-sm);
 
   align-items: center;
 

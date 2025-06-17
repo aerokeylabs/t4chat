@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import ModelSelect from '@/components/ModelSelect.vue';
+import ModelSelect from '@/components/models/ModelSelect.vue';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useChatbox } from '@/composables/chatbox';
 import { useSelectedModel } from '@/composables/selectedModel';
 import { useStreamingMessage } from '@/composables/streamingMessage';
-import { type ModelId } from '@/lib/models';
 import { displayModelName } from '@/lib/utils';
 import { useEventListener } from '@vueuse/core';
 import { ChevronDownIcon, GlobeIcon, PaperclipIcon, SendIcon, StopCircleIcon } from 'lucide-vue-next';
@@ -16,7 +15,6 @@ const selected = useSelectedModel();
 const emit = defineEmits<{
   (e: 'send', message: string): void;
   (e: 'cancel'): void;
-  (e: 'select-model', model: ModelId): void;
 }>();
 
 const textarea = useTemplateRef('textarea');
@@ -63,6 +61,10 @@ const selectModelOpen = ref(false);
 function cancel() {
   emit('cancel');
 }
+
+function toggleSearch() {
+  selected.searchEnabled = !selected.searchEnabled;
+}
 </script>
 
 <template>
@@ -83,7 +85,7 @@ function cancel() {
           </PopoverContent>
         </Popover>
 
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" :active="selected.searchEnabled" @click="toggleSearch">
           <GlobeIcon class="size-4" />
           <span class="ml-1">Search</span>
         </Button>

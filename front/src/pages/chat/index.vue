@@ -93,7 +93,7 @@ const { isStreaming } = useStreamingMessage();
         :key="i"
         variant="outline"
         @click="onCategorySelect(category)"
-        :class="{ 'bg-secondary/50': selectedCategory === category }"
+        :active="selectedCategory === category"
       >
         <component :is="icon" class="h-4 w-4" />
         {{ category }}

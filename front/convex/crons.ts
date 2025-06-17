@@ -3,6 +3,6 @@ import { internal } from './_generated/api';
 
 const crons = cronJobs();
 
-crons.daily('updateModels', { hourUTC: 0, minuteUTC: 0 }, internal.models.updateModels);
+crons.daily('update models from api', { hourUTC: 0, minuteUTC: 0 }, internal.models.updateModelsFromApi);
 
 export default crons;

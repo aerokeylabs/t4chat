@@ -1,4 +1,6 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+// region: list models
 
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -152,3 +154,51 @@ pub struct TopProvider {
   /// Whether content moderation is applied
   pub is_moderated: bool,
 }
+
+// endregion
+
+// region: completions
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+pub enum Role {
+  #[serde(rename = "user")]
+  User,
+  #[serde(rename = "system")]
+  System,
+  #[serde(rename = "assistant")]
+  Assistant,
+  #[serde(rename = "function")]
+  Function,
+  #[serde(rename = "tool")]
+  Tool,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MessagePart {
+  pub role: Role,
+  pub content: String,
+}
+
+#[derive(Serialize)]
+pub struct CompletionRequest {
+  pub model: String,
+  pub messages: Vec<MessagePart>,
+
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub max_tokens: Option<u32>,
+
+  pub stream: bool,
+}
+
+#[derive(Deserialize)]
+pub struct CompletionChoice {
+  pub message: MessagePart,
+}
+
+#[derive(Deserialize)]
+pub struct CompletionResponse {
+  pub id: String,
+  pub choices: Vec<CompletionChoice>,
+}
+
+// endregion

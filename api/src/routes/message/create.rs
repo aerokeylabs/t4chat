@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
+use anyhow::bail;
 use axum::http::HeaderMap;
 use axum::response::Sse;
 use axum::response::sse::Event;
 use futures::{Stream, StreamExt, pin_mut};
-use openai_api_rs::v1::chat_completion::{ChatCompletionMessage, ChatCompletionRequest, Content, MessageRole};
-use reqwest::{Method, RequestBuilder};
 use reqwest_eventsource::{Error as EventSourceError, Event as EventSourceEvent, EventSource};
 use stream_cancel::{Trigger, Valved};
 use tokio::sync::{Mutex, mpsc};
@@ -15,12 +14,14 @@ use crate::convex::threads::Thread;
 use crate::convex::{ConvexClient, ConvexError, messages, threads};
 use crate::convex_serde;
 use crate::openai::{ChatCompletion, ChatDelta};
-use crate::openrouter::OpenrouterClient;
+use crate::openrouter::completions::{get_completions, stream_completions};
+use crate::openrouter::types::{MessagePart, Role};
+use crate::openrouter::{OpenrouterClient, OpenrouterError};
 use crate::prelude::*;
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum MessagePart {
+pub enum MessagePartRequest {
   #[serde(rename = "text")]
   Text { text: String },
 }
@@ -35,7 +36,7 @@ pub struct ModelParamsRequest {
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMessageRequest {
-  pub message_parts: Vec<MessagePart>,
+  pub message_parts: Vec<MessagePartRequest>,
   pub thread_id: String,
   pub response_message_id: String,
   pub model: String,
@@ -92,116 +93,56 @@ pub enum OpenrouterEvent {
   Unauthorized,
 }
 
+const TITLE_GENERATION_SYSTEM_MESSAGE: &str = "You are a helpful assistant that generates concise, descriptive titles based on the user's messages. Create a short, one-line title (maximum 50 characters) that summarizes the main topic or question. Respond with only the title, without any additional text or formatting. Do not include quotes, backticks, or any other characters around the title. The title should be clear and relevant to the content provided.";
+const TITLE_GENERATION_MODEL: &str = "anthropic/claude-3-haiku";
+
 async fn generate_title_from_content(
   openrouter: Arc<Mutex<OpenrouterClient>>,
   thread_id: String,
-  content: &str
-) -> Result<String, StreamChatError> {
+  content: &str,
+  custom_key: Option<String>,
+) -> anyhow::Result<String> {
   info!("Generating title for thread: {}", thread_id);
   info!("Content for title generation: {}", content);
 
-  let system_message = ChatCompletionMessage {
-    role: MessageRole::system,
-    content: Content::Text("You are a helpful assistant that generates concise, descriptive titles based on the user's messages. Create a short, one-line title (maximum 50 characters) that summarizes the main topic or question.".to_string()),
-    name: None,
-    tool_calls: None,
-    tool_call_id: None,
-  };
-  
-  let user_message = ChatCompletionMessage {
-    role: MessageRole::user,
-    content: Content::Text(content.to_string()),
-    name: None,
-    tool_calls: None,
-    tool_call_id: None,
-  };
-  
-  let request = ChatCompletionRequest::new(
-    String::from("anthropic/claude-3-haiku"), // Using a smaller model for title generation
-    vec![system_message, user_message],
-  )
-  .max_tokens(50)
-  .temperature(0.3)
-  .stream(true);
-
-  let openrouter_guard = openrouter.lock().await;
-  let builder = match openrouter_guard.request_builder(Method::POST, "chat/completions", None) {
-    Ok(builder) => {
-      builder.json(&request)
-    },
-    Err(e) => {
-      error!("Failed to build request: {:?}", e);
-      return Ok("Chat Conversation".to_string());
-    },
-  };
-  drop(openrouter_guard);
-
-  let (_trigger, stream) = match stream_openrouter_chat(builder, false).await {
-    Ok((trigger, stream)) => {
-      (trigger, stream)
-    },
-    Err(e) => {
-      error!("Failed to start title stream: {:?}", e);
-      return Ok("Chat Conversation".to_string());
-    },
+  let system_message = MessagePart {
+    role: Role::System,
+    content: TITLE_GENERATION_SYSTEM_MESSAGE.to_string(),
   };
 
-  let mut title = String::new();
+  let user_message = MessagePart {
+    role: Role::User,
+    content: content.to_string(),
+  };
 
-  pin_mut!(stream);
-  
-  while let Some(event) = stream.next().await {
-    match event {
-      OpenrouterEvent::Completion(completion) => {
-        if let Some(choice) = completion.choices.first() {
-          match &choice.delta {
-            ChatDelta::Text { content } => {
-              if !content.is_empty() {
-                title.push_str(content);
-              } else {
-              }
-            },
-            ChatDelta::Refusal { .. } => {
-              warn!("LLM refused to generate a title");
-              return Ok("Chat Conversation".to_string());
-            },
-            ChatDelta::Finished { .. } => {
-              info!("Received finished delta from LLM");
-            },
-          }
-        } else {
-          warn!("Received completion with no choices");
-        }
-      },
-      OpenrouterEvent::Error => {
-        error!("Error in title generation stream");
-        return Ok("Chat Conversation".to_string());
-      },
-      OpenrouterEvent::Unauthorized => {
-        error!("Unauthorized in title generation stream");
-        return Ok("Chat Conversation".to_string());
-      },
-    }
-  }
+  let messages = vec![system_message, user_message];
 
-  let final_title = title.trim()
+  let completions = get_completions(openrouter, TITLE_GENERATION_MODEL, messages, custom_key, Some(50)).await?;
+
+  let title = completions
+    .choices
+    .into_iter()
+    .map(|choice| choice.message.content.to_string())
+    .collect::<Vec<_>>()
+    .join("");
+
+  let final_title = title
+    .trim()
     .trim_matches(|c| c == '"' || c == '\'' || c == '`')
     .to_string();
 
   if final_title.is_empty() {
-    Ok("Chat Conversation".to_string())
-  } else {
-    Ok(final_title)
+    bail!("Generated title is empty for thread: {}", thread_id);
   }
+
+  Ok(final_title)
 }
 
 #[tracing::instrument("stream openrouter chat", skip_all, err)]
 async fn stream_openrouter_chat(
-  request: RequestBuilder,
+  source: EventSource,
   using_custom_key: bool,
 ) -> Result<(Trigger, impl Stream<Item = OpenrouterEvent>), anyhow::Error> {
-  let source = EventSource::new(request)?;
-
   let stream = async_stream::stream! {
     for await value in source {
       match value {
@@ -258,6 +199,8 @@ async fn stream_openrouter_chat(
 pub enum StreamChatError {
   #[error("unexpected error: {0}")]
   Unexpected(#[from] anyhow::Error),
+  #[error("openrouter client error: {0}")]
+  OpenrouterError(#[from] OpenrouterError),
   #[error("convex error: {0}")]
   ConvexError(#[from] ConvexError),
   #[error("failed to create OpenRouter stream: {0}")]
@@ -301,30 +244,24 @@ async fn stream_chat(
   context: ChatContext,
 ) -> Result<(), StreamChatError> {
   let user_message = context.user_message.clone();
-  
-  let request = ChatCompletionRequest::new(
-    context.model,
-    vec![ChatCompletionMessage {
-      role: MessageRole::user,
-      content: Content::Text(user_message),
-      name: None,
-      tool_calls: None,
-      tool_call_id: None,
-    }],
-  )
-  .stream(true)
-  .temperature(0.7);
 
-  let openrouter_guard = openrouter.lock().await;
-  
+  let user_message = MessagePart {
+    role: Role::User,
+    content: user_message,
+  };
+
   let using_custom_key = context.custom_key.is_some();
-  let request = openrouter_guard
-    .request_builder(Method::POST, "chat/completions", context.custom_key)?
-    .json(&request);
-  
-  drop(openrouter_guard);
 
-  let (stream_trigger, stream) = stream_openrouter_chat(request, using_custom_key)
+  let source = stream_completions(
+    openrouter.clone(),
+    &context.model,
+    vec![user_message],
+    context.custom_key.clone(),
+    None,
+  )
+  .await?;
+
+  let (stream_trigger, stream) = stream_openrouter_chat(source, using_custom_key)
     .await
     .map_err(StreamChatError::OpenRouter)?;
 
@@ -430,16 +367,17 @@ async fn stream_chat(
 
   if context.set_title {
     let thread_messages = messages::get_by_thread_id(&mut convex_client, context.thread.id.clone()).await?;
+
     if thread_messages.len() <= 2 {
       let thread_id = context.thread.id.clone();
       let user_message = context.user_message.clone();
-      
-      let title = generate_title_from_content(
-        Arc::clone(&openrouter),
-        thread_id.clone(),
-        &user_message
-      ).await.unwrap_or_else(|_| "Chat Conversation".to_string());
+
+      let title = generate_title_from_content(openrouter, thread_id.clone(), &user_message, context.custom_key)
+        .await
+        .unwrap_or_else(|_| "Chat Conversation".to_string());
+
       info!("Setting thread title to: {}", title);
+
       let success = threads::set_title(&mut convex_client, thread_id, title).await?;
       if !success {
         return Err(StreamChatError::SetThreadTitle);
@@ -522,7 +460,7 @@ pub async fn create_message(
     .message_parts
     .into_iter()
     .map(|part| match part {
-      MessagePart::Text { text } => text,
+      MessagePartRequest::Text { text } => text,
     })
     .collect::<Vec<_>>()
     .join(" ");

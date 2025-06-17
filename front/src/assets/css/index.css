@@ -46,6 +46,12 @@
   --h: 320;
   --c: 12;
 
+  --chatbox-spacing: calc(var(--spacing) * 4);
+  --scrollbar-width: 8px;
+  --scrollbar-track: rgba(0, 0, 0, 0.05);
+  --scrollbar-thumb: color-mix(in oklab, var(--secondary) 50%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--secondary) 70%, transparent);
+
   --background: lch(100 calc(2 * var(--c)) var(--h));
   --foreground: lch(27 calc(2 * var(--c)) var(--h));
 
@@ -156,8 +162,46 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
+/* becuase 1password forces background color on inputs */
 body input[data-com-onepassword-filled],
 body input[data-com-onepassword-filled]:focus {
   background-color: pink !important;
   background-clip: text !important;
+}
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+
+  &::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+    height: var(--scrollbar-width);
+  }
+
+  &::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+    backdrop-filter: blur(10px);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+}
+
+@keyframes popIn {
+  0% {
+    transform: translateX(-50%) scale(0.95);
+  }
+  60% {
+    transform: translateX(-50%) scale(1.05);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
 }

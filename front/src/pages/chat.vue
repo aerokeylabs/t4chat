@@ -10,7 +10,8 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { apiPostSse, cancelMessage } from '@/lib/api';
 import { Routes, type CreateMessageRequest } from '@/lib/types';
-import { useLocalStorage } from '@vueuse/core';
+import { useLocalStorage, useResizeObserver } from '@vueuse/core';
+import { ChevronDownIcon } from 'lucide-vue-next';
 import { SSE, type SSEvent } from 'sse.js';
 import { computed, onMounted, ref, useTemplateRef } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
@@ -241,6 +242,17 @@ onMounted(() => {
 });
 
 const sidebarOpen = useLocalStorage('sidebar-open', false);
+
+const chatboxContainer = useTemplateRef('chatbox-container');
+
+useResizeObserver(chatboxContainer, () => {
+  if (chatboxContainer.value) {
+    chatboxHeight.value = chatboxContainer.value.offsetHeight;
+    scrollToBottom();
+  }
+});
+
+const chatboxHeightStyle = computed(() => ({ '--chatbox-height': `${chatboxHeight.value}px` }));
 </script>
 
 <template>
@@ -248,11 +260,7 @@ const sidebarOpen = useLocalStorage('sidebar-open', false);
     <AppSidebar :open="sidebarOpen" />
 
     <main class="chat">
-      <div
-        ref="messages-container"
-        class="messages custom-scrollbar"
-        :style="{ '--chatbox-height': `${chatboxHeight}px` }"
-      >
+      <div ref="messages-container" class="messages custom-scrollbar" :style="chatboxHeightStyle">
         <RouterView />
 
         <div v-if="isWaitingForFirstChunk" class="loading-indicator-container">
@@ -260,9 +268,14 @@ const sidebarOpen = useLocalStorage('sidebar-open', false);
         </div>
       </div>
 
-      <div v-if="showScrollToBottomPill" class="scroll-to-bottom-pill" @click="scrollToBottom(true)">
-        <span class="pill-text">Scroll to bottom</span>
-        <span class="pill-icon">↓</span>
+      <div
+        v-if="showScrollToBottomPill"
+        class="scroll-to-bottom-pill"
+        @click="scrollToBottom(true)"
+        :style="chatboxHeightStyle"
+      >
+        <span>Scroll to bottom</span>
+        <ChevronDownIcon />
       </div>
 
       <div ref="chatbox-container" class="chatbox-container">
@@ -273,54 +286,6 @@ const sidebarOpen = useLocalStorage('sidebar-open', false);
 </template>
 
 <style>
-:root {
-  --chatbox-spacing: calc(var(--spacing) * 4);
-  --scrollbar-width: 8px;
-  --scrollbar-track: rgba(0, 0, 0, 0.05);
-  --scrollbar-thumb: color-mix(in oklab, var(--secondary) 50%, transparent);
-  --scrollbar-thumb-hover: color-mix(in oklab, var(--secondary) 70%, transparent);
-}
-
-/* Global custom scrollbar style */
-.custom-scrollbar {
-  /* Modern Firefox */
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
-
-  /* Webkit browsers (Chrome, Safari, Edge) */
-  &::-webkit-scrollbar {
-    width: var(--scrollbar-width);
-    height: var(--scrollbar-width);
-  }
-
-  &::-webkit-scrollbar-track {
-    background: var(--scrollbar-track);
-    border-radius: 4px;
-  }
-
-  &::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: 4px;
-    backdrop-filter: blur(10px);
-  }
-
-  &::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover);
-  }
-}
-
-@keyframes popIn {
-  0% {
-    transform: translateX(-50%) scale(0.95);
-  }
-  60% {
-    transform: translateX(-50%) scale(1.05);
-  }
-  100% {
-    transform: translateX(-50%) scale(1);
-  }
-}
-
 .chat {
   position: relative;
   display: flex;
@@ -410,12 +375,11 @@ const sidebarOpen = useLocalStorage('sidebar-open', false);
 
 .scroll-to-bottom-pill {
   position: absolute;
-  bottom: calc(var(--spacing) * 42);
+  bottom: calc((var(--spacing) * 4) + var(--chatbox-height));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
 
-  /* Animation properties */
   animation: popIn 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
 
   display: flex;
@@ -424,12 +388,13 @@ const sidebarOpen = useLocalStorage('sidebar-open', false);
   gap: calc(var(--spacing) * 1.5);
   padding: calc(var(--spacing) * 1.5) calc(var(--spacing) * 3);
 
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   user-select: none;
   transition: transform 0.2s;
 
-  /* Match chatbox style with backdrop filter */
+  color: var(--text-accent-foreground);
+
   &::before {
     content: '';
     position: absolute;
@@ -440,23 +405,21 @@ const sidebarOpen = useLocalStorage('sidebar-open', false);
     z-index: -1;
     border-radius: inherit;
     backdrop-filter: blur(18px) saturate(1.5);
-    background-color: color-mix(in oklab, var(--secondary) 30%, transparent);
+    background-color: color-mix(in oklab, var(--secondary) 50%, transparent);
   }
 
   &:hover {
     transform: translateX(-50%) scale(1.05);
   }
 
-  .pill-text {
-    font-size: 0.875rem;
-    font-weight: 500;
-    color: var(--text-accent-foreground);
+  > span {
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
   }
 
-  .pill-icon {
-    font-size: 1.25rem;
-    font-weight: bold;
-    color: var(--text-accent-foreground);
+  > svg {
+    height: calc(var(--spacing) * 5);
+    width: calc(var(--spacing) * 5);
   }
 }
 </style>

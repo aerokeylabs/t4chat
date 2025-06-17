@@ -19,7 +19,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { api } from '@/convex/_generated/api';
 import { SignInButton, useUser } from '@clerk/vue';
 import { debouncedRef } from '@vueuse/core';
-import { PlusIcon, SearchIcon, Settings2Icon, SunIcon, TrashIcon } from 'lucide-vue-next';
+import { PinIcon, PinOffIcon, PlusIcon, SearchIcon, Settings2Icon, SunIcon, TrashIcon } from 'lucide-vue-next';
 import moment from 'moment';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -28,6 +28,8 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 const menu = useCommandMenu();
 
 const deleteThreadMutation = useMutation(api.threads.deleteThreadById);
+const pinThreadMutation = useMutation(api.threads.pinThreadById);
+const unpinThreadMutation = useMutation(api.threads.unpinThreadById);
 
 const deleteThread = async (threadId: string, event: Event) => {
   event.preventDefault();
@@ -43,6 +45,23 @@ const deleteThread = async (threadId: string, event: Event) => {
   } catch (error) {
     console.error('Error deleting thread:', error);
     toast.error('Failed to delete thread');
+  }
+};
+
+const togglePinThread = async (thread: Thread, event: Event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    if (thread.pinned) {
+      await unpinThreadMutation({ threadId: thread._id as Id<'threads'> });
+      toast.success('Thread unpinned');
+    } else {
+      await pinThreadMutation({ threadId: thread._id as Id<'threads'> });
+      toast.success('Thread pinned');
+    }
+  } catch (error) {
+    console.error('Error toggling pin status:', error);
+    toast.error('Failed to update pin status');
   }
 };
 
@@ -75,6 +94,19 @@ const threads = computed(() => {
     return [];
   }
 
+  // Separate pinned threads
+  const pinnedThreads: Thread[] = [];
+  const unpinnedThreads: Thread[] = [];
+
+  data.value.threads.forEach((thread) => {
+    if (thread.pinned) {
+      pinnedThreads.push(thread);
+    } else {
+      unpinnedThreads.push(thread);
+    }
+  });
+
+  // Group unpinned threads by date
   const groupedThreads = new Map<
     string,
     {
@@ -83,7 +115,7 @@ const threads = computed(() => {
     }
   >();
 
-  data.value.threads.forEach((thread) => {
+  unpinnedThreads.forEach((thread) => {
     const threadDate = new Date(thread.createdAt);
     const date = threadDate.toLocaleDateString('en-US');
     const existing = groupedThreads.get(date) ?? { date, threads: [] };
@@ -91,7 +123,18 @@ const threads = computed(() => {
     groupedThreads.set(date, existing);
   });
 
-  return Array.from(groupedThreads).map(([_, { date, threads }]) => ({
+  // Create result with Pinned section first if there are pinned threads
+  const result = [];
+  
+  if (pinnedThreads.length > 0) {
+    result.push({
+      date: 'Pinned',
+      threads: pinnedThreads,
+    });
+  }
+
+  // Add the date-grouped threads
+  const dateGroups = Array.from(groupedThreads).map(([_, { date, threads }]) => ({
     date: moment(date, 'MM/DD/YYYY').local().calendar(null, {
       lastDay: '[Yesterday]',
       sameDay: '[Today]',
@@ -102,6 +145,8 @@ const threads = computed(() => {
     }),
     threads,
   }));
+  
+  return [...result, ...dateGroups];
 });
 
 const route = useRoute();
@@ -182,21 +227,28 @@ const isOnNewPage = computed(() => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" class="sidebar-button w-full justify-start px-2" @click="navigate">
-                  <span class="truncate-text">
+                  <span class="thread-title">
                     {{ thread.title }}
                   </span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        size="icon-sm" 
-                        class="delete-button ml-auto opacity-0 hover:bg-transparent" 
-                        @click="(e) => deleteThread(thread._id, e)"
-                      >
-                        <TrashIcon class="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                  </Tooltip>
+                  <div class="action-buttons">
+                    <Button 
+                      variant="ghost" 
+                      size="icon-sm" 
+                      class="pin-button" 
+                      @click="(e) => togglePinThread(thread, e)"
+                    >
+                      <PinIcon v-if="!thread.pinned" class="h-4 w-4" />
+                      <PinOffIcon v-else class="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      size="icon-sm" 
+                      class="delete-button" 
+                      @click="(e) => deleteThread(thread._id, e)"
+                    >
+                      <TrashIcon class="h-4 w-4" />
+                    </Button>
+                  </div>
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">
@@ -288,18 +340,58 @@ const isOnNewPage = computed(() => {
 .sidebar-button {
   position: relative;
   display: flex;
+  overflow: hidden;
+  align-items: center;
   
-  .delete-button {
+  .thread-title {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-grow: 1;
+    transition: width 0.2s ease;
+    text-align: left;
+    max-width: 100%;
+  }
+  
+  .action-buttons {
+    position: absolute;
+    right: 8px;
+    display: flex;
+    gap: 0px;
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+    padding-left: 4px;
+    background-color: transparent;
+  }
+  
+  &:hover {
+    .action-buttons {
+      transform: translateX(0);
+    }
+    
+    .thread-title {
+      max-width: calc(100% - 70px);
+    }
+  }
+  
+  .delete-button, .pin-button {
     opacity: 0;
     transition: opacity 0.2s ease;
-    
-    .sidebar-button:hover & {
-      opacity: 0.7;
-    }
+  }
   
-    &:hover {
-      color: var(--destructive-foreground);
-    }
+  &:hover .delete-button, 
+  &:hover .pin-button {
+    opacity: 0.7;
+  }
+  
+  .delete-button:hover {
+    color: var(--destructive-foreground);
+  }
+  
+  .pin-button:hover {
+    color: var(--chart-4);
   }
 }
 
@@ -311,10 +403,7 @@ const isOnNewPage = computed(() => {
   }
 }
 
-.truncate-text {
-  display: block;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+
+
+
 </style>

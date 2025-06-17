@@ -4,7 +4,18 @@ import { v } from 'convex/values';
 export default defineSchema({
   messages: defineTable({
     role: v.string(),
-    parts: v.array(v.object({ text: v.string(), type: v.union(v.literal('text')) })),
+    parts: v.array(
+      v.union(
+        v.object({ text: v.string(), type: v.literal('text') }),
+        v.object({
+          type: v.literal('file'),
+          data: v.string(), // base64 encoded file data
+          filename: v.string(),
+          mimeType: v.string(),
+          size: v.number(),
+        })
+      )
+    ),
     attachmentIds: v.array(v.any()),
     attachments: v.array(v.any()),
 

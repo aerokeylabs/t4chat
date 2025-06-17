@@ -30,7 +30,16 @@ export const modelParamsValidator = v.object({
   reasoningEffort: v.string(),
 });
 
-export const messagePartValidator = v.object({
-  type: v.union(v.literal('text')),
-  text: v.string(),
-});
+export const messagePartValidator = v.union(
+  v.object({
+    type: v.literal('text'),
+    text: v.string(),
+  }),
+  v.object({
+    type: v.literal('file'),
+    data: v.string(), // base64 encoded file data
+    filename: v.string(),
+    mimeType: v.string(),
+    size: v.number(),
+  })
+);

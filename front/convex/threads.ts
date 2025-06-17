@@ -66,13 +66,19 @@ export const create = mutation({
     message: v.string(),
     model: v.string(),
     modelParams: modelParamsValidator,
+    files: v.optional(v.array(v.object({
+      name: v.string(),
+      size: v.number(),
+      type: v.string(),
+      data: v.string(), // base64 encoded data
+    }))),
   },
   handler: async (ctx, args) => {
     const identity = await getIdentity(ctx);
 
     const userId = identity.tokenIdentifier;
 
-    const { message, model, modelParams } = args;
+    const { message, model, modelParams, files } = args;
 
     const threadId = await ctx.db.insert('threads', {
       generationStatus: 'pending',
@@ -88,8 +94,31 @@ export const create = mutation({
       userId,
     });
 
+    // Prepare message parts
+    const parts: any[] = [];
+    
+    // Add text message if not empty
+    if (message.trim() !== '') {
+      parts.push({ text: message, type: 'text' });
+    }
+    
+    // Add file attachments if any
+    if (files && files.length > 0) {
+      for (const file of files) {
+        // Use type assertion to assure TypeScript that this matches the messagePartValidator union type
+        const filePart = {
+          type: 'file' as const,
+          data: file.data,
+          filename: file.name,
+          mimeType: file.type,
+          size: file.size,
+        };
+        parts.push(filePart as any); // Type assertion to avoid TypeScript error
+      }
+    }
+
     await ctx.db.insert('messages', {
-      parts: [{ text: message, type: 'text' }],
+      parts,
       role: 'user',
       attachmentIds: [],
       attachments: [],
@@ -119,6 +148,12 @@ export const createMessage = mutation({
     messageParts: v.array(messagePartValidator),
     model: v.string(),
     modelParams: modelParamsValidator,
+    files: v.optional(v.array(v.object({
+      name: v.string(),
+      size: v.number(),
+      type: v.string(),
+      data: v.string(), // base64 encoded data
+    }))),
   },
   handler: async (ctx, args) => {
     const identity = await getIdentity(ctx);
@@ -129,9 +164,27 @@ export const createMessage = mutation({
     const threadId = thread._id;
 
     const userId = (await ctx.auth.getUserIdentity())?.tokenIdentifier ?? 'null';
+    
+    // Prepare message parts
+    let messageParts = [...args.messageParts];
+    
+    // Add file attachments if any
+    if (args.files && args.files.length > 0) {
+      for (const file of args.files) {
+        // Use type assertion to assure TypeScript that this matches the messagePartValidator union type
+        const filePart = {
+          type: 'file' as const,
+          data: file.data,
+          filename: file.name,
+          mimeType: file.type,
+          size: file.size,
+        };
+        messageParts.push(filePart as any); // Type assertion to avoid TypeScript error
+      }
+    }
 
     await ctx.db.insert('messages', {
-      parts: args.messageParts,
+      parts: messageParts,
       role: 'user',
       attachmentIds: [],
       attachments: [],
@@ -180,6 +233,40 @@ export const deleteThreadById = mutation({
     }
 
     await ctx.db.delete(threadId);
+
+    return { threadId };
+  },
+});
+
+export const pinThreadById = mutation({
+  args: {
+    threadId: v.id('threads'),
+  },
+  handler: async (ctx, { threadId }) => {
+    const identity = await getIdentity(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (thread?.userId !== identity.tokenIdentifier) return null;
+
+    await ctx.db.patch(threadId, {
+      pinned: true,
+    });
+
+    return { threadId };
+  },
+});
+
+export const unpinThreadById = mutation({
+  args: {
+    threadId: v.id('threads'),
+  },
+  handler: async (ctx, { threadId }) => {
+    const identity = await getIdentity(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (thread?.userId !== identity.tokenIdentifier) return null;
+
+    await ctx.db.patch(threadId, {
+      pinned: false,
+    });
 
     return { threadId };
   },

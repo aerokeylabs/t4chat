@@ -78,7 +78,7 @@ async function onSend(message: string) {
   try {
     // Set waiting for first chunk to true
     isWaitingForFirstChunk.value = true;
-    
+
     if (isInThread.value) {
       console.info('send message to thread', threadId.value, 'with content', message);
       const result = await createMessageMutation({
@@ -243,7 +243,7 @@ onMounted(() => {
         :style="{ '--chatbox-height': `${chatboxHeight}px` }"
       >
         <RouterView />
-        
+
         <!-- Loading indicator while waiting for first chunk -->
         <div v-if="isWaitingForFirstChunk" class="loading-indicator-container">
           <LoadingDots />

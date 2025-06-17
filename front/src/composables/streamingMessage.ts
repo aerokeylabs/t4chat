@@ -198,7 +198,7 @@ export function useStreamingMessage() {
           // Scroll to bottom with smooth animation
           messagesContainer.value.scrollTo({
             top: messagesContainer.value.scrollHeight,
-            behavior: 'smooth'
+            behavior: 'smooth',
           });
         } else {
           // User has scrolled up, show the pill instead

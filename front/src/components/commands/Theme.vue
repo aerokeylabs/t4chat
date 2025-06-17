@@ -38,7 +38,7 @@ function setMode(mode: ThemeMode) {
       <Label>Set hue</Label>
       <div class="flex items-center gap-2">
         <Input
-          class="w-24 bg-secondary"
+          class="bg-secondary w-24"
           type="number"
           placeholder="Set hue"
           auto-focus
@@ -57,7 +57,7 @@ function setMode(mode: ThemeMode) {
       <Label>Set chroma</Label>
       <div class="flex items-center gap-2">
         <Input
-          class="w-24 bg-secondary"
+          class="bg-secondary w-24"
           type="number"
           placeholder="Chroma"
           auto-focus
@@ -86,7 +86,9 @@ function setMode(mode: ThemeMode) {
     font-size: 15px;
     font-weight: 500;
     z-index: 1;
-    transition: transform 0.1s ease, color 0.2s ease;
+    transition:
+      transform 0.1s ease,
+      color 0.2s ease;
 
     &::after {
       content: '';

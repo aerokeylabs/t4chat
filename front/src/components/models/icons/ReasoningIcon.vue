@@ -10,6 +10,6 @@ import { BrainIcon } from 'lucide-vue-next';
 <style>
 .icon-reasoning {
   --color: oklch(0.74 0.11 301);
-  --background-color: oklch(0.52 0.20 296 / 0.1);
+  --background-color: oklch(0.52 0.2 296 / 0.1);
 }
 </style>

@@ -69,11 +69,18 @@ export const updateSettings = mutation({
       .first();
 
     if (existingSettings) {
-      if (args.settings.hidePersonalInfo !== undefined && 
-          args.settings.hidePersonalInfo !== existingSettings.hidePersonalInfo) {
-        console.log('Convex: Updating hidePersonalInfo from', existingSettings.hidePersonalInfo, 'to', args.settings.hidePersonalInfo);
+      if (
+        args.settings.hidePersonalInfo !== undefined &&
+        args.settings.hidePersonalInfo !== existingSettings.hidePersonalInfo
+      ) {
+        console.log(
+          'Convex: Updating hidePersonalInfo from',
+          existingSettings.hidePersonalInfo,
+          'to',
+          args.settings.hidePersonalInfo,
+        );
       }
-      
+
       return ctx.db.patch(existingSettings._id, {
         ...(args.settings.userName !== undefined && { userName: args.settings.userName }),
         ...(args.settings.userOccupation !== undefined && { userOccupation: args.settings.userOccupation }),

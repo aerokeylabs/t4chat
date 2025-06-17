@@ -38,7 +38,13 @@ function copy() {
 
 <template>
   <div class="sensitive-input" :class="props.class">
-    <Input v-model="modelValue" :default-value="defaultValue" v-bind="$attrs" :type="concealed ? 'password' : 'text'" data-1p-ignore="true" />
+    <Input
+      v-model="modelValue"
+      :default-value="defaultValue"
+      v-bind="$attrs"
+      :type="concealed ? 'password' : 'text'"
+      data-1p-ignore
+    />
     <DropdownMenu>
       <DropdownMenuTrigger>
         <EyeOffIcon v-if="concealed" />
@@ -90,8 +96,17 @@ function copy() {
 
     border-radius: var(--radius-sm);
     border: 1px solid var(--border);
-    padding: var(--spacing);
+    padding: 0 calc(var(--spacing) * 1.5);
     margin: var(--spacing);
+
+    cursor: pointer;
+
+    &:hover,
+    &[data-state='open'] {
+      border-color: var(--input);
+    }
+
+    transition: border-color 0.2s ease-in-out;
 
     > * {
       color: var(--muted-foreground);

@@ -11,8 +11,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { useMutation, useReactiveQuery } from '@/composables/convex';
+import { useMutation, useReactiveQuery, useConvex } from '@/composables/convex';
 import type { Id } from '@/convex/_generated/dataModel';
+import type { Message, AssistantMessage } from '@/lib/types/convex';
 import { api } from '@/convex/_generated/api';
 import { ref, computed } from 'vue';
 import { TrashIcon } from 'lucide-vue-next';
@@ -32,6 +33,18 @@ const { data: messageCounts } = useReactiveQuery(
   api.threads.getMessageCounts,
   computed(() => ({ threadIds: threadIds.value })),
 );
+
+const convex = useConvex();
+
+const getMessagesForThread = async (threadId: string): Promise<Message[]> => {
+  try {
+    const result = await convex.query(api.messages.getByThreadId, { threadId: threadId as Id<'threads'> });
+    return (result?.messages || []) as unknown as Message[];
+  } catch (error) {
+    console.error('Error fetching messages for thread:', threadId, error);
+    return [];
+  }
+};
 
 const formattedThreads = computed(() => {
   if (!threadsData.value) return [];
@@ -71,29 +84,27 @@ const deleteAllThreads = async () => {
     toast.error('Failed to delete all conversations');
   }
 };
-const selectedThreads = ref<string[]>([]);
+const selectedThreads = ref<Id<'threads'>[]>([]);
 const showDeleteDialog = ref(false);
 const showDeleteAllDialog = ref(false);
 
 const hasConversations = computed(() => formattedThreads.value.length > 0);
 
-function toggleSelectAll(checked: boolean | 'indeterminate') {
-  if (checked === true) {
-    selectedThreads.value = [...new Set([...selectedThreads.value, ...formattedThreads.value.map(thread => thread.id)])];
-  } else {
-    const threadIds = formattedThreads.value.map(thread => thread.id);
-    selectedThreads.value = selectedThreads.value.filter(id => !threadIds.includes(id));
+const selectAll = computed({
+  get: () => formattedThreads.value.length > 0 && 
+    formattedThreads.value.every(t => selectedThreads.value.includes(t.id)),
+  set: (value: boolean) => {
+    if (value) {
+      const newSelections = formattedThreads.value
+        .map(t => t.id)
+        .filter(id => !selectedThreads.value.includes(id));
+      selectedThreads.value = [...selectedThreads.value, ...newSelections];
+    } else {
+      const threadIds = new Set(formattedThreads.value.map(t => t.id));
+      selectedThreads.value = selectedThreads.value.filter(id => !threadIds.has(id));
+    }
   }
-}
-
-function toggleSelection(id: string) {
-  const index = selectedThreads.value.indexOf(id);
-  if (index === -1) {
-    selectedThreads.value.push(id);
-  } else {
-    selectedThreads.value.splice(index, 1);
-  }
-}
+});
 
 async function deleteSelected() {
   try {
@@ -108,27 +119,73 @@ async function deleteSelected() {
   }
 }
 
-function exportSelected() {
-  const selectedData = formattedThreads.value.filter((thread) => selectedThreads.value.includes(thread.id));
+async function exportSelected() {
+  const selectedData = formattedThreads.value.filter((thread) => 
+    selectedThreads.value.includes(thread.id)
+  );
 
-  const exportData = selectedData.map((thread) => ({
-    id: thread.id,
-    title: thread.title,
-    date: thread.date,
-    createdAt: thread.createdAt,
-  }));
+  try {
+    toast.info('Preparing export, this may take a moment...');
+    
+    const exportData = [];
+    
+    for (const thread of selectedData) {
+      const messages = await getMessagesForThread(thread.id);
+      
+      const formattedMessages = messages.map((msg) => {
+        const message = msg as unknown as Message;
+        
+        const textContent = message.parts
+          .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+          .map(part => part.text)
+          .join('\n');
 
-  const dataStr = JSON.stringify(exportData, null, 2);
-  const dataBlob = new Blob([dataStr], { type: 'application/json' });
-  const url = URL.createObjectURL(dataBlob);
+        const baseMessage = {
+          id: message._id,
+          role: message.role,
+          text: textContent,
+          createdAt: new Date(message._creationTime).toISOString(),
+        };
 
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `t4chat-history-export-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+        if (message.role === 'assistant') {
+          const assistantMsg = message as AssistantMessage;
+          return {
+            ...baseMessage,
+            status: assistantMsg.status,
+            model: assistantMsg.model,
+            ...(assistantMsg.modelParams ? { modelParams: assistantMsg.modelParams } : {})
+          };
+        }
+        return baseMessage;
+      });
+
+      exportData.push({
+        id: thread.id,
+        title: thread.title,
+        date: thread.date,
+        createdAt: new Date(thread.createdAt).toISOString(),
+        messageCount: formattedMessages.length,
+        messages: formattedMessages
+      });
+    }
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `t4chat-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success('Export completed successfully');
+  } catch (error) {
+    console.error('Error during export:', error);
+    toast.error('Failed to export conversations');
+  }
 }
 </script>
 
@@ -202,9 +259,9 @@ function exportSelected() {
           class="bg-background/95 supports-[backdrop-filter]:bg-background/60 flex flex-shrink-0 items-center gap-2 border-b px-6 py-3 backdrop-blur"
         >
           <Checkbox
-            :checked="formattedThreads.length > 0 && formattedThreads.every(t => selectedThreads.includes(t.id))"
+            :model-value="selectAll"
+            @update:model-value="(val: boolean | 'indeterminate') => { if (val !== 'indeterminate') selectAll = val }"
             :indeterminate="formattedThreads.some(t => selectedThreads.includes(t.id)) && !formattedThreads.every(t => selectedThreads.includes(t.id))"
-            @update:checked="toggleSelectAll"
             class="h-4 w-4"
           />
           <span class="text-muted-foreground text-sm font-medium">Select all</span>
@@ -222,8 +279,19 @@ function exportSelected() {
                 >
                   <div class="flex w-full items-center gap-3">
                     <Checkbox
-                      :checked="selectedThreads.includes(thread.id)"
-                      @update:checked="() => toggleSelection(thread.id)"
+                      :model-value="selectedThreads.includes(thread.id)"
+                      @update:model-value="checked => {
+                        if (checked) {
+                          if (!selectedThreads.includes(thread.id)) {
+                            selectedThreads.push(thread.id);
+                          }
+                        } else {
+                          const index = selectedThreads.indexOf(thread.id);
+                          if (index !== -1) {
+                            selectedThreads.splice(index, 1);
+                          }
+                        }
+                      }"
                       class="h-4 w-4 flex-shrink-0"
                     />
                     <div class="min-w-0 flex-1">

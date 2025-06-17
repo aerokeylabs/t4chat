@@ -83,10 +83,19 @@ export const apiAppendText = mutation({
     // if last part is not text, add a new text part with args.text
     const lastPart = parts.length === 0 ? null : parts[parts.length - 1];
 
+    // Helper function to create a text part
+    function createTextPart(text: string) {
+      return { type: 'text' as const, text };
+    }
+    
     if (lastPart == null) {
       parts.push(createTextPart(args.text));
-    } else {
+    } else if (lastPart.type === 'text') {
+      // Only append text if the last part is a text part
       lastPart.text += args.text;
+    } else {
+      // If last part is not a text part (e.g., file), add a new text part
+      parts.push(createTextPart(args.text));
     }
 
     await ctx.db.patch(message._id, {

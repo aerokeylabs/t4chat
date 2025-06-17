@@ -46,17 +46,17 @@
   --h: 320;
   --c: 12;
 
-  --background: lch(100 calc(0.5 * var(--c)) var(--h));
-  --foreground: lch(27 calc(0.5 * var(--c)) var(--h));
+  --background: lch(100 calc(2 * var(--c)) var(--h));
+  --foreground: lch(27 calc(2 * var(--c)) var(--h));
   
-  --card: lch(100 calc(0.5 * var(--c)) var(--h));
-  --card-foreground: lch(27 calc(0.5 * var(--c)) var(--h));
+  --card: lch(100 calc(2 * var(--c)) var(--h));
+  --card-foreground: lch(27 calc(2 * var(--c)) var(--h));
   
-  --popover: lch(100 calc(0.5 * var(--c)) var(--h));
-  --popover-foreground: lch(27 calc(0.5 * var(--c)) var(--h));
+  --popover: lch(100 calc(1.5 * var(--c)) var(--h));
+  --popover-foreground: lch(27 calc(1.5 * var(--c)) var(--h));
   
-  --primary: lch(30 calc(0.5 * var(--c)) var(--h));
-  --primary-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+  --primary: lch(30 calc(1.5 * var(--c)) var(--h));
+  --primary-foreground: lch(98 calc(1.5 * var(--c)) var(--h));
   
   --secondary: lch(95 calc(3 * var(--c)) var(--h));
   --secondary-foreground: lch(30 calc(3 * var(--c)) var(--h));
@@ -82,10 +82,10 @@
   
   --radius: 0.625rem;
   
-  --sidebar: lch(98 calc(0.5 * var(--c)) var(--h));
-  --sidebar-foreground: lch(27 calc(0.5 * var(--c)) var(--h));
-  --sidebar-primary: lch(30 calc(0.5 * var(--c)) var(--h));
-  --sidebar-primary-foreground: lch(98 calc(0.5 * var(--c)) var(--h));
+  --sidebar: lch(98 calc(1.5 * var(--c)) var(--h));
+  --sidebar-foreground: lch(27 calc(2 * var(--c)) var(--h));
+  --sidebar-primary: lch(30 calc(2 * var(--c)) var(--h));
+  --sidebar-primary-foreground: lch(98 calc(2 * var(--c)) var(--h));
   --sidebar-accent: lch(95 calc(3 * var(--c)) var(--h));
   --sidebar-accent-foreground: lch(30 calc(3 * var(--c)) var(--h));
   --sidebar-border: lch(92 calc(2 * var(--c)) var(--h));

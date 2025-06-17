@@ -32,7 +32,7 @@ const displayedModels = computed(() => (hasQuery.value ? searchResults.value : f
       <SearchIcon />
     </IconInput>
 
-    <div class="model-select-inner">
+    <div class="model-select-inner bg-sidebar">
       <Button v-if="!hasQuery && selected.model != null" variant="ghost" class="bg-secondary w-full justify-start">
         {{ displayModelName(selected.model.name) }}
       </Button>

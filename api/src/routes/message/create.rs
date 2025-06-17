@@ -366,15 +366,18 @@ async fn stream_chat(
 
     let messages = messages.into_iter().map(message_to_part).collect::<Vec<_>>();
 
-    let title = generate_title_from_content(openrouter, context.thread.id.clone(), messages, context.custom_key)
-      .await
-      .unwrap_or_else(|_| "Chat Conversation".to_string());
-
-    info!("Setting thread title to: {}", title);
-
-    let success = threads::set_title(&mut convex_client, context.thread.id, title).await?;
-    if !success {
-      return Err(StreamChatError::SetThreadTitle);
+    match generate_title_from_content(openrouter, context.thread.id.clone(), messages, context.custom_key).await {
+      Ok(title) => {
+        info!("Setting thread title to: {}", title);
+        let success = threads::set_title(&mut convex_client, context.thread.id, title).await?;
+        if !success {
+          return Err(StreamChatError::SetThreadTitle);
+        }
+      }
+      Err(err) => {
+        error!("Failed to generate title: {:?}", err);
+        return Err(StreamChatError::Unexpected(err));
+      }
     }
   }
 

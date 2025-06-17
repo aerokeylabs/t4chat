@@ -23,7 +23,20 @@ const args = computed(() => ({ query: debouncedQuery.value }));
 const hasQuery = computed(() => debouncedQuery.value.trim() !== '');
 const { data: searchResults } = useReactiveQuery(api.models.search, args, hasQuery);
 
-const displayedModels = computed(() => (hasQuery.value ? searchResults.value : featured.value)?.models ?? []);
+const displayedModels = computed(() => {
+  const models = (hasQuery.value ? searchResults.value : featured.value)?.models ?? [];
+  const uniqueSlugs = new Set();
+
+  if (!hasQuery.value && selected.model?.slug) {
+    uniqueSlugs.add(selected.model.slug);
+  }
+
+  return models.filter((model) => {
+    if (uniqueSlugs.has(model.slug)) return false;
+    uniqueSlugs.add(model.slug);
+    return true;
+  });
+});
 </script>
 
 <template>

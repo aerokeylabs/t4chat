@@ -86,6 +86,7 @@ function setMode(mode: ThemeMode) {
     font-size: 15px;
     font-weight: 500;
     z-index: 1;
+    transition: transform 0.1s ease, color 0.2s ease;
 
     &::after {
       content: '';
@@ -94,10 +95,11 @@ function setMode(mode: ThemeMode) {
       background-color: transparent;
       z-index: -1;
       border-radius: 6px;
+      transition: background-color 0.2s ease;
     }
 
     &.active::after {
-      background-color: var(--bg-floating-active);
+      background-color: var(--accent);
     }
 
     &:first-child::after,
@@ -105,8 +107,16 @@ function setMode(mode: ThemeMode) {
       inset: 0px 4px;
     }
 
-    &:hover::after {
-      background-color: var(--bg-floating-hover);
+    &:hover {
+      background-color: var(--accent);
+    }
+
+    &:active {
+      transform: scale(0.96);
+    }
+
+    &:active::after {
+      opacity: 0.7;
     }
   }
 }

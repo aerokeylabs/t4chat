@@ -13,17 +13,38 @@ import {
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useReactiveQuery } from '@/composables/convex';
+import { useMutation, useReactiveQuery } from '@/composables/convex';
 import { useCommandMenu } from '@/composables/useCommandMenu';
+import type { Id } from '@/convex/_generated/dataModel';
 import { api } from '@/convex/_generated/api';
 import { SignInButton, useUser } from '@clerk/vue';
 import { debouncedRef } from '@vueuse/core';
-import { PlusIcon, SearchIcon } from 'lucide-vue-next';
+import { PlusIcon, SearchIcon, TrashIcon } from 'lucide-vue-next';
 import moment from 'moment';
 import { computed, ref } from 'vue';
+import { toast } from 'vue-sonner';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 
 const menu = useCommandMenu();
+
+const deleteThreadMutation = useMutation(api.threads.deleteThreadById);
+
+const deleteThread = async (threadId: string, event: Event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    await deleteThreadMutation({ threadId: threadId as Id<'threads'> });
+
+    toast.success('Thread deleted');
+
+    if (route.params.thread === threadId) {
+      router.push('/chat');
+    }
+  } catch (error) {
+    console.error('Error deleting thread:', error);
+    toast.error('Failed to delete thread');
+  }
+};
 
 defineProps<{
   open: boolean;
@@ -63,9 +84,8 @@ const threads = computed(() => {
   >();
 
   data.value.threads.forEach((thread) => {
-    // Use local timezone for the date
     const threadDate = new Date(thread.createdAt);
-    const date = threadDate.toLocaleDateString('en-US'); // Format as local date
+    const date = threadDate.toLocaleDateString('en-US');
     const existing = groupedThreads.get(date) ?? { date, threads: [] };
     existing.threads.push(thread);
     groupedThreads.set(date, existing);
@@ -76,7 +96,7 @@ const threads = computed(() => {
       lastDay: '[Yesterday]',
       sameDay: '[Today]',
       nextDay: '[Tomorrow]',
-      lastWeek: '[last] dddd',
+      lastWeek: '[Last] dddd',
       nextWeek: 'dddd',
       sameElse: 'L',
     }),
@@ -143,6 +163,18 @@ const isOnNewPage = computed(() => {
                   <span class="truncate-text">
                     {{ thread.title }}
                   </span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon-sm" 
+                        class="delete-button ml-auto opacity-0 hover:bg-transparent" 
+                        @click="(e) => deleteThread(thread._id, e)"
+                      >
+                        <TrashIcon class="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                  </Tooltip>
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">
@@ -224,6 +256,27 @@ const isOnNewPage = computed(() => {
 .sidebar-button {
   position: relative;
   display: flex;
+  
+  .delete-button {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    
+    .sidebar-button:hover & {
+      opacity: 0.7;
+    }
+  
+    &:hover {
+      color: var(--destructive-foreground);
+    }
+  }
+}
+
+.delete-button {
+  transition: opacity 0.2s ease;
+  
+  &:hover {
+    color: var(--destructive);
+  }
 }
 
 .truncate-text {

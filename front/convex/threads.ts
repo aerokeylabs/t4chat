@@ -161,6 +161,30 @@ export const createMessage = mutation({
   },
 });
 
+export const deleteThreadById = mutation({
+  args: {
+    threadId: v.id('threads'),
+  },
+  handler: async (ctx, { threadId }) => {
+    const identity = await getIdentity(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (thread?.userId !== identity.tokenIdentifier) return null;
+
+    const messages = await ctx.db
+      .query('messages')
+      .withIndex('by_thread', (q) => q.eq('threadId', threadId))
+      .collect();
+    
+    for (const message of messages) {
+      await ctx.db.delete(message._id);
+    }
+
+    await ctx.db.delete(threadId);
+
+    return { threadId };
+  },
+});
+
 export const updateTitle = mutation({
   args: {
     threadId: v.id('threads'),

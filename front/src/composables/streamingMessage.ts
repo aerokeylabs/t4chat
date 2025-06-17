@@ -56,10 +56,6 @@ export function useStreamingMessage() {
   }
 
   function onStreamCompleted() {
-    // debug write data to console
-    console.debug('Stream completed:', {
-      message: message.value,
-    });
     completed.value = true;
     cancelled.value = false;
     failed.value = false;

@@ -3,6 +3,7 @@ import { getMarkdownProcessor } from '@/lib/shiki';
 import { useMutationObserver } from '@vueuse/core';
 import { createApp, ref, useTemplateRef, watch } from 'vue';
 import CodeblockHeader from './CodeblockHeader.vue';
+import { useCodeblockWrap } from '@/composables/codeblockWrap';
 
 const props = defineProps<{
   source: string;
@@ -19,6 +20,17 @@ watch(
   { immediate: true },
 );
 
+const codeblockWrap = useCodeblockWrap();
+const wrapChangeWatchers: ((value: boolean) => void)[] = [];
+
+watch(
+  codeblockWrap,
+  (newValue) => {
+    wrapChangeWatchers.forEach((watcher) => watcher(newValue));
+  },
+  { immediate: true },
+);
+
 const component = useTemplateRef('component');
 
 function addHeaderIfMissing(node: HTMLElement) {
@@ -29,20 +41,38 @@ function addHeaderIfMissing(node: HTMLElement) {
 
   if (node.querySelector('.codeblock-header')) return;
 
+  let watcher: (value: boolean) => void;
+
   const app = createApp(CodeblockHeader, {
+    parent: node,
     language,
-    onCopy: () => {
-      console.info('Copying code block to clipboard');
+    onCopy() {
+      console.info('Copying code block content');
+      const code = node.querySelector('code');
+      if (code) {
+        navigator.clipboard.writeText(code.textContent || '');
+      } else {
+        console.warn('No code element found to copy');
+      }
     },
-    onWrap: () => {
-      console.info('Toggling code block wrapping');
-      node.classList.toggle('wrapped');
+    onWrap(newValue: boolean) {
+      codeblockWrap.value = newValue;
+    },
+    onUnmounted() {
+      wrapChangeWatchers.splice(wrapChangeWatchers.indexOf(watcher), 1);
     },
   });
 
   const container = document.createElement('div');
   node.insertBefore(container, node.firstChild);
-  app.mount(container);
+  const instance = app.mount(container) as InstanceType<typeof CodeblockHeader>;
+  instance.setWrap(codeblockWrap.value);
+
+  watcher = (value: boolean) => {
+    instance.setWrap(value);
+  };
+
+  wrapChangeWatchers.push(watcher);
 }
 
 useMutationObserver(

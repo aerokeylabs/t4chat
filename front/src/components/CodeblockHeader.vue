@@ -10,15 +10,15 @@ defineProps<{
 </script>
 
 <template>
-  <div class="codeblock-header flex items-center justify-between gap-2">
+  <div class="codeblock-header">
     <span>{{ language }}</span>
 
-    <div class="flex items-center gap-2">
-      <Button variant="ghost" size="icon" @click="onWrap">
+    <div>
+      <Button variant="ghost" size="icon-sm" @click="onWrap">
         <WrapTextIcon class="size-4" />
       </Button>
 
-      <Button variant="ghost" size="icon" @click="onCopy">
+      <Button variant="ghost" size="icon-sm" @click="onCopy">
         <ClipboardIcon class="size-4" />
       </Button>
     </div>
@@ -32,13 +32,16 @@ defineProps<{
   justify-content: space-between;
 
   gap: calc(var(--spacing) * 2);
-  padding: calc(var(--spacing) * 2);
+  padding: var(--spacing);
   padding-left: calc(var(--spacing) * 4);
 
   background-color: color-mix(in oklab, var(--color-secondary) 30%, transparent);
 
   border-top-left-radius: var(--radius-lg);
   border-top-right-radius: var(--radius-lg);
+
+  border: 1px solid var(--color-border);
+  border-bottom: none;
 
   > span {
     font-family: var(--font-mono);

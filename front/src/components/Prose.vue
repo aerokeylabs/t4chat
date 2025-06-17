@@ -48,15 +48,8 @@ function addHeaderIfMissing(node: HTMLElement) {
 useMutationObserver(
   component,
   (mutations) => {
-    // if mutation involves an element with class `codeblock`
-    mutations.forEach((mutation) => {
-      if (mutation.type === 'childList') {
-        mutation.addedNodes.forEach((node) => {
-          if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).classList.contains('codeblock')) {
-            addHeaderIfMissing(node as HTMLElement);
-          }
-        });
-      }
+    document.querySelectorAll('.codeblock').forEach((node) => {
+      addHeaderIfMissing(node as HTMLElement);
     });
 
     if (mutations.length === 0) {

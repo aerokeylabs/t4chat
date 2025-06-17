@@ -41,7 +41,7 @@ const displayedModels = computed(() => {
 
 <template>
   <div class="model-select">
-    <IconInput v-model="query" type="text" placeholder="Search models...">
+    <IconInput v-model="query" type="text" placeholder="Search all OpenRouter models...">
       <SearchIcon />
     </IconInput>
 
@@ -76,12 +76,12 @@ const displayedModels = computed(() => {
   flex-direction: column;
   gap: calc(var(--spacing) * 2);
 
-  height: 570px;
-  width: 420px;
+  max-height: 570px;
+  width: 100%;
 
   .model-select-inner {
     min-height: 0;
-    height: 100%;
+    max-height: 500px;
     overflow-y: auto;
 
     display: flex;

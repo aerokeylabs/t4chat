@@ -80,7 +80,7 @@ function toggleSearch() {
               <ChevronDownIcon class="mt-0.5 size-4" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent class="flex w-min flex-col gap-2 p-2" align="start">
+          <PopoverContent class="flex w-min flex-col gap-2 p-2 bg-background" align="start">
             <ModelSelect />
           </PopoverContent>
         </Popover>

@@ -1,8 +1,8 @@
 import { ConvexError, v } from 'convex/values';
+import type { Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
-import { getIdentity, validateKey } from './utils';
 import { messagePartValidator, modelParamsValidator } from './schema';
-import { Id } from './_generated/dataModel';
+import { getIdentity, validateKey } from './utils';
 
 export const getById = query({
   args: { id: v.id('threads') },

@@ -55,7 +55,7 @@ const saveTitle = async (threadId: string, event: Event) => {
   try {
     await updateThreadTitleMutation({
       threadId: threadId as Id<'threads'>,
-      title: title
+      title: title,
     });
     editingThreadId.value = null;
   } catch (error) {
@@ -284,7 +284,7 @@ const isOnNewPage = computed(() => {
                         @keyup.esc="cancelEditing($event)"
                         @click.stop
                         @blur="saveTitle(thread._id, $event)"
-                        class="bg-transparent outline-none w-full"
+                        class="w-full bg-transparent outline-none"
                         ref="titleInput"
                       />
                     </template>

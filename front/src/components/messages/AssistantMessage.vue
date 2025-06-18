@@ -9,7 +9,7 @@ import { useReactiveQuery } from '@/composables/convex';
 import { api } from '@/convex/_generated/api';
 import type { AssistantMessage } from '@/lib/types/convex';
 import { copyToClipboard, displayModelName } from '@/lib/utils';
-import { ClockIcon, CopyIcon, CpuIcon, RefreshCcwIcon, SplitIcon, ZapIcon } from 'lucide-vue-next';
+import { ChevronDownIcon, ClockIcon, CopyIcon, CpuIcon, RefreshCcwIcon, SplitIcon, ZapIcon } from 'lucide-vue-next';
 import moment from 'moment';
 import { computed } from 'vue';
 
@@ -76,20 +76,7 @@ function copy() {
       <Collapsible class="reasoning" :default-open="false">
         <CollapsibleTrigger class="reasoning-trigger">
           <span class="text-muted-foreground">Reasoning</span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="lucide lucide-chevron-down"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
+          <ChevronDownIcon />
         </CollapsibleTrigger>
         <CollapsibleContent class="reasoning-content">
           <div class="reasoning-text">

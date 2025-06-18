@@ -1,21 +1,20 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+export const messagePartValidator = v.union(
+  v.object({ text: v.string(), type: v.literal('text') }),
+  v.object({ type: v.literal('attachment'), id: v.id('attachments') }),
+);
+
+export const modelParamsValidator = v.object({
+  includeSearch: v.boolean(),
+  reasoningEffort: v.string(),
+});
+
 export default defineSchema({
   messages: defineTable({
     role: v.string(),
-    parts: v.array(
-      v.union(
-        v.object({ text: v.string(), type: v.literal('text') }),
-        v.object({
-          type: v.literal('file'),
-          data: v.string(), // base64 encoded file data
-          filename: v.string(),
-          mimeType: v.string(),
-          size: v.number(),
-        }),
-      ),
-    ),
+    parts: v.array(messagePartValidator),
     attachmentIds: v.array(v.any()),
     attachments: v.array(v.any()),
 
@@ -23,12 +22,7 @@ export default defineSchema({
     userId: v.string(),
 
     model: v.optional(v.string()),
-    modelParams: v.optional(
-      v.object({
-        includeSearch: v.boolean(),
-        reasoningEffort: v.string(),
-      }),
-    ),
+    modelParams: v.optional(modelParamsValidator),
     providerMetadata: v.optional(
       v.object({
         google: v.object({
@@ -116,4 +110,11 @@ export default defineSchema({
     .index('by_slug', ['slug'])
     .index('by_openrouter_id', ['id'])
     .index('by_featured', ['featured']),
+
+  attachments: defineTable({
+    name: v.string(),
+    mimeType: v.string(),
+    size: v.number(),
+    storageId: v.optional(v.id('_storage')),
+  }),
 });

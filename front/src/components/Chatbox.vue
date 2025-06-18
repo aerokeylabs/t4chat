@@ -15,7 +15,7 @@ import { useChatbox } from '@/composables/chatbox';
 import { useSelectedModel, type ReasoningEffort } from '@/composables/selectedModel';
 import { useStreamingMessage } from '@/composables/streamingMessage';
 import { displayModelName } from '@/lib/utils';
-import { useEventListener } from '@vueuse/core';
+import { useDropZone, useEventListener, useFileDialog } from '@vueuse/core';
 import {
   ChevronDownIcon,
   GlobeIcon,
@@ -29,17 +29,17 @@ import {
   StopCircleIcon,
   XIcon,
 } from 'lucide-vue-next';
-import { computed, nextTick, ref, useTemplateRef } from 'vue';
+import { computed, nextTick, ref, toValue, useTemplateRef, watch } from 'vue';
+import { toast } from 'vue-sonner';
 
 const selected = useSelectedModel();
 
 const emit = defineEmits<{
-  (e: 'send', message: string, encodedFiles?: Array<{ name: string; type: string; size: number; data: string }>): void;
+  (e: 'send', message: string, files?: File[]): void;
   (e: 'cancel'): void;
 }>();
 
 const textarea = useTemplateRef('textarea');
-const fileInput = useTemplateRef<HTMLInputElement>('fileInput');
 
 const { value: message } = useChatbox();
 const streamingMessage = useStreamingMessage();
@@ -49,43 +49,6 @@ const messageValid = computed(() => {
   return message.value.trim() !== '' || selectedFiles.value.length > 0;
 });
 
-// Function to encode a file as base64
-async function encodeFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      // The result is a data URL like "data:application/pdf;base64,JVBERi..."
-      // We need to extract just the base64 part
-      const base64String = reader.result as string;
-      resolve(base64String);
-    };
-    reader.onerror = (error) => reject(error);
-    reader.readAsDataURL(file);
-  });
-}
-
-// Process files for sending
-async function prepareFilesForSend(): Promise<Array<{ name: string; type: string; size: number; data: string }>> {
-  const encodedFiles = [];
-
-  for (const file of selectedFiles.value) {
-    try {
-      const base64Data = await encodeFileAsBase64(file);
-      encodedFiles.push({
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        data: base64Data,
-      });
-    } catch (error) {
-      console.error('Failed to encode file:', file.name, error);
-      // Continue with other files
-    }
-  }
-
-  return encodedFiles;
-}
-
 async function send() {
   if (message.value.trim() === '' && selectedFiles.value.length === 0) return;
 
@@ -93,13 +56,7 @@ async function send() {
     cancel();
   }
 
-  let encodedFiles: Array<{ name: string; type: string; size: number; data: string }> = [];
-  if (selectedFiles.value.length > 0) {
-    // Show some loading state if needed
-    encodedFiles = await prepareFilesForSend();
-  }
-
-  emit('send', message.value, encodedFiles);
+  emit('send', message.value, toValue(selectedFiles));
 
   message.value = '';
   selectedFiles.value = [];
@@ -133,21 +90,48 @@ function toggleSearch() {
   selected.searchEnabled = !selected.searchEnabled;
 }
 
-function handleFileSelect() {
-  if (fileInput.value) {
-    fileInput.value.click();
+const fileDropZone = useTemplateRef('file-drop-zone');
+
+function tryAddFile(file: File) {
+  if (file.size > FILE_SIZE_LIMIT_BYTES) {
+    toast.error(`File size exceeds the limit of ${FILE_SIZE_LIMIT_MB} MB: ${file.name}`);
+    return;
   }
+
+  if (selectedFiles.value.some((f) => f.name === file.name)) {
+    return;
+  }
+
+  selectedFiles.value.push(file);
 }
 
-function onFileInputChange(event: Event) {
-  const target = event.target as HTMLInputElement;
-  if (target.files) {
-    selectedFiles.value = [...selectedFiles.value, ...Array.from(target.files)];
-    target.value = ''; // Reset input
+const { isOverDropZone } = useDropZone(fileDropZone, {
+  onDrop(files) {
+    if (files == null) return;
+    for (const file of files) tryAddFile(file);
+  },
+});
 
+const { open: openFileDialog, onChange } = useFileDialog({
+  accept: 'image/*,application/pdf',
+  multiple: true,
+});
+
+watch(
+  selectedFiles,
+  () => {
     nextTick(updateTextareaHeight);
-  }
-}
+  },
+  { deep: true },
+);
+
+const FILE_SIZE_LIMIT_MB = 50;
+const FILE_SIZE_LIMIT_BYTES = FILE_SIZE_LIMIT_MB * 1024 * 1024;
+
+onChange((files: FileList | null) => {
+  if (files == null) return;
+  for (const file of files) tryAddFile(file);
+});
 
 function removeFile(index: number) {
   selectedFiles.value.splice(index, 1);
@@ -166,7 +150,7 @@ function setReasoningEffort(effort: ReasoningEffort) {
 </script>
 
 <template>
-  <div class="chatbox">
+  <div ref="file-drop-zone" class="chatbox" :class="{ 'is-over': isOverDropZone }">
     <div class="input-area">
       <textarea ref="textarea" v-model="message" placeholder="Type your message here..."></textarea>
 
@@ -248,10 +232,9 @@ function setReasoningEffort(effort: ReasoningEffort) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button variant="outline" size="icon-sm" @click="handleFileSelect">
+        <Button variant="outline" size="icon-sm" @click="openFileDialog">
           <span class="sr-only">Add attachment</span>
           <PaperclipIcon class="size-4" />
-          <input ref="fileInput" type="file" class="hidden" multiple @change="onFileInputChange" />
         </Button>
       </div>
 
@@ -278,6 +261,10 @@ function setReasoningEffort(effort: ReasoningEffort) {
   border-radius: var(--radius);
 
   gap: calc(var(--spacing) * 2);
+
+  &.is-over {
+    outline: 2px dashed var(--color-accent);
+  }
 
   > .input-area {
     > textarea {

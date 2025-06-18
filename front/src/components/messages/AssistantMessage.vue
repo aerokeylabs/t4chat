@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import MessagePartAttachment from '@/components/messages/MessagePartAttachment.vue';
+import MessagePartText from '@/components/messages/MessagePartText.vue';
 import Prose from '@/components/Prose.vue';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -52,8 +54,15 @@ const reasoning = computed(() => {
   return reasoning;
 });
 
+// todo: maybe move to function
+// todo: maybe copy attachment url
 function copy() {
-  copyToClipboard(props.message.parts.map((part) => part.text).join('\n'));
+  copyToClipboard(
+    props.message.parts
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n'),
+  );
 }
 </script>
 
@@ -69,8 +78,8 @@ function copy() {
     </Collapsible>
 
     <template v-for="part in message.parts">
-      <Prose v-if="part.type === 'text'" :source="part.text" />
-      <div v-else>{{ { part } }}</div>
+      <MessagePartText v-if="part.type === 'text'" :part />
+      <MessagePartAttachment v-else-if="part.type === 'attachment'" :part />
     </template>
 
     <div class="message-controls">

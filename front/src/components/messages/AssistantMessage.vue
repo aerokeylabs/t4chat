@@ -108,9 +108,11 @@ function retryMessage() {
       </Collapsible>
     </div>
 
-    <div class="parts" v-for="part in message.parts">
-      <MessagePartText v-if="part.type === 'text'" :part />
-      <MessagePartAttachment v-else-if="part.type === 'attachment'" :part />
+    <div class="message-content">
+      <template v-for="part in message.parts">
+        <MessagePartText v-if="part.type === 'text'" :part />
+        <MessagePartAttachment v-else-if="part.type === 'attachment'" :part />
+      </template>
     </div>
 
     <div v-if="message.status === 'complete'" class="annotations" :class="{ 'has-annotations': hasAnnotations }">
@@ -181,6 +183,13 @@ function retryMessage() {
 .assistant-message {
   color: var(--color-primary-foreground);
   margin-bottom: calc(var(--spacing) * 12);
+
+  > .message-content {
+    display: flex;
+    flex-direction: column;
+
+    gap: calc(var(--spacing) * 4);
+  }
 
   .annotations {
     margin-top: calc(var(--spacing) * 3);

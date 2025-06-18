@@ -103,6 +103,11 @@ function retryMessage() {
   }
 
   > .message-content {
+    display: flex;
+    flex-direction: column;
+
+    gap: calc(var(--spacing) * 4);
+
     background-color: var(--secondary);
     color: var(--secondary-foreground);
     border-radius: var(--radius);

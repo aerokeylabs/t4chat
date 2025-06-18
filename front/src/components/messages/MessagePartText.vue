@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Prose from '@/components/Prose.vue';
 import type { TextPart } from '@/lib/types/convex';
 
 defineProps<{

@@ -41,12 +41,21 @@ export type UserMessage = BaseMessage & {
   role: 'user';
 };
 
+export type Annotation = {
+  title: string;
+  url: string;
+  content: string;
+};
+
 type BaseAssistantMessage = BaseMessage & {
   role: 'assistant';
   status: 'pending' | 'complete' | 'cancelled' | 'error';
   model: string;
   modelParams: ModelParams;
   providerMetadata: ProviderMetadata;
+
+  reasoning?: string;
+  annotations?: Annotation[];
 };
 
 type CompletedAssistantMessage = {
@@ -56,8 +65,6 @@ type CompletedAssistantMessage = {
   durationMs: number;
   tokensPerSecond: number;
   timeToFirstTokenMs: number;
-
-  reasoning?: string;
 };
 
 type PendingAssistantMessage = {

@@ -4,7 +4,6 @@ import MessagePartText from '@/components/messages/MessagePartText.vue';
 import Prose from '@/components/Prose.vue';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { computed, ref, watch } from 'vue';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useReactiveQuery } from '@/composables/convex';
 import { api } from '@/convex/_generated/api';
@@ -12,6 +11,7 @@ import type { AssistantMessage } from '@/lib/types/convex';
 import { copyToClipboard, displayModelName } from '@/lib/utils';
 import { ClockIcon, CopyIcon, CpuIcon, RefreshCcwIcon, SplitIcon, ZapIcon } from 'lucide-vue-next';
 import moment from 'moment';
+import { computed } from 'vue';
 
 const props = defineProps<{
   message: AssistantMessage;
@@ -21,18 +21,9 @@ const args = computed(() => ({ id: props.message.model }));
 const { data: model } = useReactiveQuery(api.models.getByOpenrouterId, args);
 const modelName = computed(() => displayModelName(model.value?.name ?? 'Unknown Model'));
 
-const showAnnotations = ref(false);
-const annotationArgs = computed(() => ({ messageId: props.message._id }));
-const { 
-  data: annotations, 
-  error: annotationsError 
-} = useReactiveQuery(api.messages.getAnnotationsByMessageId, annotationArgs);
-
-watch(annotations, (newAnnotations) => {
-  if (newAnnotations?.length) {
-    showAnnotations.value = true;
-  }
-}, { immediate: true });
+const hasAnnotations = computed(() => {
+  return props.message.annotations != null && props.message.annotations.length > 0;
+});
 
 const floatFormat = new Intl.NumberFormat('en-US', {
   style: 'decimal',
@@ -85,8 +76,19 @@ function copy() {
       <Collapsible class="reasoning" :default-open="false">
         <CollapsibleTrigger class="reasoning-trigger">
           <span class="text-muted-foreground">Reasoning</span>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down">
-            <path d="m6 9 6 6 6-6"/>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="lucide lucide-chevron-down"
+          >
+            <path d="m6 9 6 6 6-6" />
           </svg>
         </CollapsibleTrigger>
         <CollapsibleContent class="reasoning-content">
@@ -102,28 +104,13 @@ function copy() {
       <MessagePartAttachment v-else-if="part.type === 'attachment'" :part />
     </template>
 
-    <div 
-      v-if="message.status === 'complete'" 
-      class="annotations"
-      :class="{ 'has-annotations': annotations && annotations.length > 0 }"
-    >
-      <div v-if="annotationsError" class="annotations-error">
-        <span class="error-text">Failed to load sources</span>
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          @click="() => {}"
-          class="retry-button"
-        >
-          Retry
-        </Button>
-      </div>
-      <div v-else-if="annotations && annotations.length > 0" class="annotation-pills">
-        <a 
-          v-for="(annotation, index) in annotations" 
+    <div v-if="message.status === 'complete'" class="annotations" :class="{ 'has-annotations': hasAnnotations }">
+      <div class="annotation-pills">
+        <a
+          v-for="(annotation, index) in message.annotations"
           :key="index"
-          :href="annotation.url" 
-          target="_blank" 
+          :href="annotation.url"
+          target="_blank"
           rel="noopener noreferrer"
           class="annotation-pill"
           :title="annotation.content"
@@ -185,16 +172,16 @@ function copy() {
 .assistant-message {
   color: var(--color-primary-foreground);
   margin-bottom: calc(var(--spacing) * 12);
-  
+
   .annotations {
     margin-top: calc(var(--spacing) * 3);
     font-size: var(--text-sm);
     padding-top: calc(var(--spacing) * 2);
-    
+
     &.has-annotations {
       border-top: 1px solid var(--color-border);
     }
-    
+
     .annotations-title {
       color: var(--color-muted-foreground);
       margin-bottom: calc(var(--spacing) * 1.5);
@@ -203,57 +190,59 @@ function copy() {
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    
+
     .annotation-pills {
       display: flex;
       flex-wrap: wrap;
       gap: var(--spacing);
       margin-top: calc(var(--spacing) * 1);
     }
-    
+
     .annotation-pill {
-      display: inline-flex;
       align-items: center;
       background-color: var(--color-secondary);
       color: var(--color-secondary-foreground);
       padding: calc(var(--spacing) * 0.75) calc(var(--spacing) * 1.5);
+
       border-radius: 6px;
       font-size: var(--text-xs);
       font-weight: 500;
       text-decoration: none;
       transition: all 0.2s ease;
+
       white-space: nowrap;
-      overflow: hidden;
       text-overflow: ellipsis;
+      overflow: hidden;
+
       max-width: 240px;
       border: 1px solid var(--color-border);
       box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      
+
       &:hover {
         background-color: var(--color-secondary-hover);
         transform: translateY(-1px);
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
-      
+
       &:active {
         transform: translateY(0);
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
       }
-      
+
       &::before {
         content: '🔗';
         margin-right: 0.5em;
         opacity: 0.7;
       }
     }
-    
+
     .annotations-loading {
       display: flex;
       gap: var(--spacing);
       align-items: center;
       color: var(--color-muted-foreground);
       font-size: var(--text-xs);
-      
+
       .loading-dot {
         width: 6px;
         height: 6px;
@@ -261,52 +250,53 @@ function copy() {
         background-color: var(--color-muted-foreground);
         opacity: 0.6;
         animation: pulse 1.5s infinite ease-in-out;
-        
+
         &:nth-child(2) {
           animation-delay: 0.2s;
         }
-        
+
         &:nth-child(3) {
           animation-delay: 0.4s;
         }
       }
     }
-    
+
     .annotations-error {
       display: flex;
       align-items: center;
       gap: var(--spacing);
       color: var(--color-destructive);
       font-size: var(--text-xs);
-      
+
       .retry-button {
         margin-left: var(--spacing);
         font-size: var(--text-xs);
         height: auto;
         padding: 0.25rem 0.5rem;
       }
-      
+
       .error-text {
         display: flex;
         align-items: center;
         gap: 0.25rem;
-        
+
         &::before {
           content: '⚠️';
           font-size: 1em;
         }
       }
     }
-    
+
     .annotations-empty {
       color: var(--color-muted-foreground);
       font-style: italic;
       font-size: var(--text-xs);
       opacity: 0.8;
     }
-    
+
     @keyframes pulse {
-      0%, 100% {
+      0%,
+      100% {
         opacity: 0.3;
         transform: scale(0.8);
       }
@@ -319,7 +309,7 @@ function copy() {
 
   .reasoning-container {
     margin-bottom: calc(var(--spacing) * 4);
-    
+
     .reasoning {
       .reasoning-trigger {
         display: flex;
@@ -331,22 +321,22 @@ function copy() {
         cursor: pointer;
         transition: color 0.2s ease;
         user-select: none;
-        
+
         &:hover {
           color: var(--color-foreground);
         }
-        
+
         svg {
           transition: transform 0.2s ease;
           width: 16px;
           height: 16px;
         }
-        
+
         &[data-state='open'] svg {
           transform: rotate(180deg);
         }
       }
-      
+
       .reasoning-content {
         .reasoning-text {
           color: var(--color-muted-foreground);
@@ -359,7 +349,7 @@ function copy() {
         }
       }
     }
-    
+
     .divider {
       height: 1px;
       background-color: var(--color-border);

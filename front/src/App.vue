@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import CommandMenu from '@/components/CommandMenu.vue';
+import LoginPage from '@/components/LoginPage.vue';
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { useConvexAuth } from '@/composables/convex';
 import { RouterView } from 'vue-router';
-import CommandMenu from '@/components/CommandMenu.vue';
-import { TooltipProvider } from '@/components/ui/tooltip';
 
 const { isLoading, isSignedIn } = useConvexAuth();
 </script>
@@ -14,6 +15,6 @@ const { isLoading, isSignedIn } = useConvexAuth();
     <CommandMenu />
     <RouterView v-if="isSignedIn" />
     <main v-else-if="isLoading">Loading...</main>
-    <main v-else>not authenticated</main>
+    <LoginPage v-else>not authenticated</LoginPage>
   </TooltipProvider>
 </template>

@@ -400,9 +400,14 @@ fn openrouter_annotation_to_convex(annotation: Annotation) -> ConvexAnnotation {
     Annotation::FileCitation { file } => ConvexAnnotation {
       title: file.name.clone(),
       url: file.name,
-      content: match file.content {
-        FileCitationContent::Text { text } => text,
-      },
+      content: file
+        .content
+        .into_iter()
+        .map(|content| match content {
+          FileCitationContent::Text { text } => text,
+        })
+        .collect::<Vec<_>>()
+        .join("\n"),
     },
   }
 }

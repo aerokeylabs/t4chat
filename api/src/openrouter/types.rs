@@ -348,7 +348,7 @@ pub enum FileCitationContent {
 pub struct FileCitation {
   pub hash: String,
   pub name: String,
-  pub content: FileCitationContent,
+  pub content: Vec<FileCitationContent>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -370,3 +370,17 @@ pub struct UrlCitation {
 }
 
 // endregion
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn test_parse_file_citation_response() {
+    let json = include_str!("../../test_data/file-citation.json");
+
+    let parsed = serde_json::from_str::<ChatCompletion>(json).unwrap();
+
+    assert_eq!(parsed.choices.len(), 1);
+  }
+}

@@ -159,7 +159,7 @@ pub struct TopProvider {
 
 // region: completions
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Role {
   #[serde(rename = "user")]
   User,
@@ -173,30 +173,10 @@ pub enum Role {
   Tool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Annotations {
-    pub annotations: Vec<Annotation>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
-pub enum Annotation {
-    #[serde(rename = "url_citation")]
-    UrlCitation { url_citation: UrlCitationData },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UrlCitationData {
-    pub title: String,
-    pub url: String,
-    pub content: String,
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
   pub role: Role,
   pub content: String,
-  pub annotations: Option<Annotations>,
 }
 
 #[derive(Serialize)]
@@ -229,12 +209,22 @@ pub struct CompletionResponse {
 #[serde(rename_all = "snake_case")]
 pub struct ChatCompletion {
   pub choices: Vec<ChatChoice>,
+  pub usage: Option<ChatUsage>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ChatChoice {
   pub delta: ChatDelta,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+#[serde(rename_all = "snake_case")]
+pub enum ChatDelta {
+  Text { content: String, reasoning: Option<String>, annotations: Option<Vec<Annotation>> },
+  Finished { finish_reason: String },
+  Refusal { refusal: String },
 }
 
 #[derive(Debug, Deserialize)]
@@ -248,12 +238,24 @@ pub enum FinishReason {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(untagged)]
 #[serde(rename_all = "snake_case")]
-pub enum ChatDelta {
-  Text { content: String },
-  Finished { finish_reason: String },
-  Refusal { refusal: String },
+pub struct ChatUsage {
+  pub prompt_tokens: u32,
+  pub completion_tokens: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+pub enum Annotation {
+  #[serde(rename = "url_citation")]
+  UrlCitation { url_citation: UrlCitation },
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UrlCitation {
+  pub title: String,
+  pub url: String,
+  pub content: String,
 }
 
 // endregion

@@ -41,9 +41,23 @@ export default defineSchema({
     status: v.optional(
       v.union(v.literal('pending'), v.literal('complete'), v.literal('cancelled'), v.literal('error')),
     ),
-    timeToFirstToken: v.optional(v.float64()),
-    tokens: v.optional(v.float64()),
-    tokensPerSecond: v.optional(v.float64()),
+
+    reasoning: v.optional(v.string()),
+    annotations: v.optional(
+      v.array(
+        v.object({
+          title: v.string(),
+          url: v.string(),
+          content: v.string(),
+        }),
+      ),
+    ),
+
+    promptTokenCount: v.optional(v.number()),
+    tokenCount: v.optional(v.number()),
+    durationMs: v.optional(v.number()),
+    tokensPerSecond: v.optional(v.number()),
+    timeToFirstTokenMs: v.optional(v.number()),
   })
     .index('by_thread', ['threadId'])
     .index('by_user', ['userId']),
@@ -100,5 +114,6 @@ export default defineSchema({
       searchField: 'name',
     })
     .index('by_slug', ['slug'])
+    .index('by_openrouter_id', ['id'])
     .index('by_featured', ['featured']),
 });

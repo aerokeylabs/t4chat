@@ -18,6 +18,22 @@ export const getBySlug = query({
   },
 });
 
+export const getByOpenrouterId = query({
+  args: {
+    id: v.string(),
+  },
+  async handler(ctx, { id }) {
+    // remove :online from end of id if it exists
+    const trimmedId = id.endsWith(':online') ? id.slice(0, -7) : id;
+
+    const model = await ctx.db
+      .query('models')
+      .withIndex('by_openrouter_id', (q) => q.eq('id', trimmedId))
+      .first();
+    return model ?? null;
+  },
+});
+
 export const search = query({
   args: {
     query: v.string(),

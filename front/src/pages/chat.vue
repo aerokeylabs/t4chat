@@ -9,11 +9,11 @@ import { useStreamingMessage } from '@/composables/streamingMessage';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { apiPostSse, cancelMessage } from '@/lib/api';
-import { Routes, type CreateMessageRequest } from '@/lib/types';
-import { useLocalStorage, useResizeObserver } from '@vueuse/core';
+import { Routes, type AnnotationResponse, type CreateMessageRequest } from '@/lib/types';
+import { useEventListener, useLocalStorage, useResizeObserver } from '@vueuse/core';
 import { ChevronDownIcon } from 'lucide-vue-next';
 import { SSE, type SSEvent } from 'sse.js';
-import { computed, onMounted, ref, useTemplateRef } from 'vue';
+import { computed, ref, useTemplateRef } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import { toast } from 'vue-sonner';
 
@@ -25,19 +25,7 @@ const isInThread = computed(() => threadId.value != null);
 const createThreadMutation = useMutation(api.threads.create);
 const createMessageMutation = useMutation(api.threads.createMessage);
 
-const {
-  message: streamingMessage,
-  onStreamStarted,
-  onStreamCompleted,
-  onStreamCancelled,
-  onStreamFailed,
-  isStreaming,
-  addChunk,
-  setMessagesContainer,
-  scrollToBottom,
-  showScrollToBottomPill,
-  resetScrollState,
-} = useStreamingMessage();
+const streamingMessage = useStreamingMessage();
 
 const isWaitingForFirstChunk = ref(false);
 
@@ -52,8 +40,6 @@ async function onSend(message: string) {
     return;
   }
 
-  // Reset scroll state and force scroll to bottom when sending a new message
-  resetScrollState();
   scrollToBottom(true);
 
   const modelParams = { includeSearch: selected.searchEnabled, reasoningEffort: 'medium' };
@@ -63,8 +49,8 @@ async function onSend(message: string) {
   if (eventSource != null) {
     console.warn('Cancelling previous streaming message');
 
-    if (isStreaming.value) {
-      onStreamCancelled();
+    if (streamingMessage.isStreaming) {
+      streamingMessage.onStreamCancelled();
     }
 
     try {
@@ -74,7 +60,7 @@ async function onSend(message: string) {
       console.error('Error closing previous SSE connection:', error);
     }
 
-    streamingMessage.value = '';
+    streamingMessage.clear();
   }
 
   try {
@@ -128,17 +114,28 @@ async function onSend(message: string) {
       activeThreadId = thread.threadId;
     }
 
-    onStreamStarted(activeThreadId);
+    streamingMessage.onStreamStarted(activeThreadId);
 
     let ended = false;
 
     // 0: text
-    // 1: error
-    // 2: cancelled
-    // 3: refusal
-    // 4: end
-    // 5: unauthorized
-    type ChatEvent = ['0', string] | ['1'] | ['2'] | ['3', string] | ['4'] | ['5'];
+    // 1: reasoning
+    // 2: annotations
+    // 3: error
+    // 4: cancelled
+    // 5: refusal
+    // 6: end
+    // 7: unauthorized
+
+    type ChatEvent =
+      | ['0', string]
+      | ['1', string]
+      | ['2', AnnotationResponse[]]
+      | ['3']
+      | ['4']
+      | ['5', string]
+      | ['6']
+      | ['7'];
 
     eventSource.addEventListener('message', (event: SSEvent) => {
       // event.data format is 'type:value'
@@ -153,38 +150,42 @@ async function onSend(message: string) {
 
       switch (type) {
         case '0': {
-          // Hide loading indicator when first chunk arrives
-          if (isWaitingForFirstChunk.value) {
-            isWaitingForFirstChunk.value = false;
-          }
-          addChunk(value);
+          streamingMessage.addResponseChunk(value);
           break;
         }
         case '1': {
-          console.error('Error in SSE stream');
-          onStreamFailed();
+          streamingMessage.addReasoningChunk(value);
           break;
         }
         case '2': {
-          console.warn('SSE stream cancelled');
-          onStreamCancelled();
+          // todo: annotations
           break;
         }
         case '3': {
-          console.warn('SSE stream refusal:', value);
-          onStreamCancelled();
+          console.error('Error in SSE stream');
+          streamingMessage.onStreamFailed();
           break;
         }
         case '4': {
-          console.info('SSE stream ended');
-          ended = true;
-          onStreamCompleted();
-          eventSource?.close();
+          console.warn('SSE stream cancelled');
+          streamingMessage.onStreamCancelled();
           break;
         }
         case '5': {
+          console.warn('SSE stream refusal:', value);
+          streamingMessage.onStreamCancelled();
+          break;
+        }
+        case '6': {
+          console.info('SSE stream ended');
+          ended = true;
+          streamingMessage.onStreamCompleted();
+          eventSource?.close();
+          break;
+        }
+        case '7': {
           console.error('Unauthorized SSE stream:', value);
-          onStreamFailed();
+          streamingMessage.onStreamFailed();
           eventSource?.close();
           toast.error('Provider returned 401 Unauthorized for provided API key', {
             action: {
@@ -203,7 +204,7 @@ async function onSend(message: string) {
       if (ended) return;
       ended = true;
       console.info('SSE stream ended:', event);
-      onStreamCompleted();
+      streamingMessage.onStreamCompleted();
       eventSource?.close();
     });
 
@@ -211,12 +212,12 @@ async function onSend(message: string) {
       if (ended) return;
       ended = true;
       console.error('SSE error:', event);
-      onStreamFailed();
+      streamingMessage.onStreamFailed();
       eventSource?.close();
     });
   } catch (error) {
     console.error('Error sending message:', error);
-    onStreamFailed();
+    streamingMessage.onStreamFailed();
     if (eventSource) {
       eventSource.close();
       eventSource = null;
@@ -235,11 +236,6 @@ async function onCancel() {
 }
 
 const chatboxHeight = ref(300);
-const messagesContainer = useTemplateRef('messages-container');
-
-onMounted(() => {
-  setMessagesContainer(messagesContainer.value);
-});
 
 const sidebarOpen = useLocalStorage('sidebar-open', false);
 
@@ -253,6 +249,39 @@ useResizeObserver(chatboxContainer, () => {
 });
 
 const chatboxHeightStyle = computed(() => ({ '--chatbox-height': `${chatboxHeight.value}px` }));
+
+const messagesContainer = useTemplateRef('messages-container');
+const scrollTarget = useTemplateRef('scroll-target');
+
+const notAtBottom = ref(false);
+
+function scrollToBottom(force = false) {
+  if (!notAtBottom.value && !force) return;
+
+  if (messagesContainer.value && scrollTarget.value) {
+    messagesContainer.value.scrollTo({
+      top: scrollTarget.value.offsetTop,
+      behavior: 'smooth',
+    });
+    notAtBottom.value = false;
+  }
+}
+
+function checkForScroll(auto: boolean) {
+  if (messagesContainer.value) {
+    const containerHeight = messagesContainer.value.clientHeight;
+    const scrollHeight = messagesContainer.value.scrollHeight;
+
+    notAtBottom.value = !(messagesContainer.value.scrollTop + containerHeight >= scrollHeight - 256);
+
+    if (notAtBottom.value && auto) {
+      scrollToBottom();
+    }
+  }
+}
+
+useResizeObserver(messagesContainer, () => checkForScroll(true));
+useEventListener(messagesContainer, 'scroll', () => checkForScroll(false));
 </script>
 
 <template>
@@ -267,14 +296,11 @@ const chatboxHeightStyle = computed(() => ({ '--chatbox-height': `${chatboxHeigh
           <div v-if="isWaitingForFirstChunk" class="loading-indicator-container">
             <LoadingDots />
           </div>
+
+          <div ref="scroll-target"></div>
         </div>
 
-        <div
-          v-if="showScrollToBottomPill"
-          class="scroll-to-bottom-pill"
-          @click="scrollToBottom(true)"
-          :style="chatboxHeightStyle"
-        >
+        <div v-if="notAtBottom" class="scroll-to-bottom-pill" @click="scrollToBottom(true)" :style="chatboxHeightStyle">
           <span>Scroll to bottom</span>
           <ChevronDownIcon />
         </div>
@@ -321,9 +347,6 @@ const chatboxHeightStyle = computed(() => ({ '--chatbox-height': `${chatboxHeigh
 
   padding-top: calc(var(--spacing) * 32);
   padding-bottom: var(--chatbox-height);
-
-  /* Add custom scrollbar */
-  @extend .custom-scrollbar;
 
   > section {
     width: 100%;

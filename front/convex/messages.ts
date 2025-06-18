@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { getIdentity, validateKey } from './utils';
 
@@ -100,6 +100,77 @@ export const apiAppendText = mutation({
 });
 
 // api only route
+export const apiAppendReasoning = mutation({
+  args: {
+    apiKey: v.string(),
+    messageId: v.id('messages'),
+    reasoning: v.string(),
+  },
+  handler: async (ctx, args) => {
+    validateKey(args.apiKey);
+
+    const message = await ctx.db.get(args.messageId);
+    if (message == null) return null;
+
+    if (message.role !== 'assistant') {
+      throw new ConvexError('Only assistant messages can have reasoning');
+    }
+
+    const reasoning = (message.reasoning ?? '') + args.reasoning;
+
+    await ctx.db.patch(message._id, {
+      reasoning,
+    });
+
+    return { _id: message._id };
+  },
+});
+
+// api only route
+export const apiAppendAnnotations = mutation({
+  args: {
+    apiKey: v.string(),
+    messageId: v.id('messages'),
+    annotations: v.array(
+      v.object({
+        title: v.string(),
+        url: v.string(),
+        content: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    validateKey(args.apiKey);
+
+    const message = await ctx.db.get(args.messageId);
+    if (message == null) return null;
+
+    if (message.role !== 'assistant') {
+      throw new ConvexError('Only assistant messages can have annotations');
+    }
+
+    const existing = message.annotations ?? [];
+    const newAnnotations = args.annotations.filter(
+      (a) =>
+        !existing.some(
+          (existingAnnotation) =>
+            existingAnnotation.title === a.title &&
+            existingAnnotation.url === a.url &&
+            existingAnnotation.content === a.content,
+        ),
+    );
+
+    const annotations = [...existing, ...newAnnotations];
+
+    await ctx.db.patch(message._id, {
+      annotations,
+    });
+
+    return { _id: message._id };
+  },
+});
+
+// api only route
 export const apiComplete = mutation({
   args: {
     apiKey: v.string(),
@@ -111,21 +182,44 @@ export const apiComplete = mutation({
         includeSearch: v.boolean(),
       }),
     ),
+    promptTokenCount: v.number(),
+    tokenCount: v.number(),
+    durationMs: v.number(),
+    tokensPerSecond: v.number(),
+    timeToFirstTokenMs: v.number(),
   },
-  handler: async (ctx, args) => {
-    validateKey(args.apiKey);
+  handler: async (
+    ctx,
+    {
+      apiKey,
+      messageId,
+      model,
+      modelParams,
+      promptTokenCount,
+      tokenCount,
+      durationMs,
+      tokensPerSecond,
+      timeToFirstTokenMs,
+    },
+  ) => {
+    validateKey(apiKey);
 
-    const message = await ctx.db.get(args.messageId);
+    const message = await ctx.db.get(messageId);
     if (message == null) return null;
 
     if (message.role === 'assistant') {
       await ctx.db.patch(message._id, {
         status: 'complete',
-        model: args.model,
-        modelParams: args.modelParams != null ? { ...args.modelParams } : undefined,
+        model,
+        modelParams: modelParams != null ? { ...modelParams } : undefined,
+        promptTokenCount,
+        tokenCount,
+        durationMs,
+        tokensPerSecond,
+        timeToFirstTokenMs,
       });
     } else {
-      throw new Error('Only assistant messages can be completed');
+      throw new ConvexError('Only assistant messages can be completed');
     }
 
     return { _id: message._id };
@@ -149,7 +243,7 @@ export const apiCancel = mutation({
         status: 'cancelled',
       });
     } else {
-      throw new Error('Only assistant messages can be cancelled');
+      throw new ConvexError('Only assistant messages can be cancelled');
     }
 
     return { _id: message._id };

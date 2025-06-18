@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use convex::Value;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use crate::convex::{ConvexClient, Result, convex_mutation, convex_query};
 use crate::convex_serde::to_map;
@@ -91,6 +92,11 @@ pub struct CompleteMessageArgs {
   pub message_id: String,
   pub model: String,
   pub model_params: Option<ModelParams>,
+  pub time_to_first_token_ms: f64,
+  pub prompt_token_count: f64,
+  pub token_count: f64,
+  pub duration_ms: f64,
+  pub tokens_per_second: f64,
 }
 
 pub async fn complete(client: &mut ConvexClient, args: &CompleteMessageArgs) -> Result<bool> {
@@ -110,6 +116,43 @@ pub async fn append_text(client: &mut ConvexClient, message_id: String, text: St
   ]);
 
   let result = convex_mutation::<Option<MessageIdOnly>>(client, APPEND_TEXT, args).await?;
+
+  Ok(result.is_some())
+}
+
+pub async fn append_reasoning(client: &mut ConvexClient, message_id: String, reasoning: String) -> Result<bool> {
+  const APPEND_REASONING: &str = "messages:apiAppendReasoning";
+
+  let args = BTreeMap::from([
+    ("messageId".to_string(), Value::String(message_id)),
+    ("reasoning".to_string(), Value::String(reasoning)),
+  ]);
+
+  let result = convex_mutation::<Option<MessageIdOnly>>(client, APPEND_REASONING, args).await?;
+
+  Ok(result.is_some())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnnotationArgs {
+  pub message_id: String,
+  pub annotations: Vec<Annotation>,
+}
+
+#[derive(Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+#[specta(rename = "AnnotationResponse")]
+pub struct Annotation {
+  pub title: String,
+  pub url: String,
+  pub content: String,
+}
+
+pub async fn append_annotations(client: &mut ConvexClient, args: AnnotationArgs) -> Result<bool> {
+  const APPEND_ANNOTATIONS: &str = "messages:apiAppendAnnotations";
+
+  let result = convex_mutation::<Option<MessageIdOnly>>(client, APPEND_ANNOTATIONS, to_map(&args)?).await?;
 
   Ok(result.is_some())
 }

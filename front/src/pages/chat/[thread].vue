@@ -5,12 +5,13 @@ import UserMessage from '@/components/messages/UserMessage.vue';
 import { useReactiveQuery } from '@/composables/convex';
 import { useStreamingMessage } from '@/composables/streamingMessage';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import type { Message } from '@/lib/types/convex';
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
 const route = useRoute();
-const args = computed(() => ({ threadId: route.params.thread as string }));
+const args = computed(() => ({ threadId: route.params.thread as Id<'threads'> }));
 
 const { data, error } = useReactiveQuery(api.messages.getByThreadId, args);
 
@@ -19,19 +20,14 @@ const messages = computed(() => {
   return data.value.messages as Message[];
 });
 
-const { message: streamingMessage, completed, failed } = useStreamingMessage();
+const streamingMessage = useStreamingMessage();
 
 // show streaming message if it is not completed or if the last message is still pending
 const showStreamingMessage = computed(() => {
-  const lastMessage = messages.value.length === 0 ? null : messages.value[messages.value.length - 1];
-  if (!completed.value) return true;
-  if (lastMessage?.role === 'assistant' && lastMessage.status === 'complete') return false;
+  // const lastMessage = messages.value.length === 0 ? null : messages.value[messages.value.length - 1];
+  // if (!streamingMessage.completed) return true;
+  // if (lastMessage?.role === 'assistant' && lastMessage.status === 'complete') return false;
   return true;
-});
-
-const streamError = computed(() => {
-  if (failed.value) return 'Error generating response';
-  return null;
 });
 </script>
 
@@ -42,7 +38,7 @@ const streamError = computed(() => {
       <AssistantMessage v-else :message />
     </template>
 
-    <StreamingMessage v-if="showStreamingMessage" :message="streamingMessage" :error="streamError" />
+    <StreamingMessage v-if="showStreamingMessage" />
   </section>
   <section v-else-if="error">
     <p>Error loading messages: {{ error.message }}</p>

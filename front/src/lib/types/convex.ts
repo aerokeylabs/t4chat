@@ -34,17 +34,30 @@ export type UserMessage = BaseMessage & {
   role: 'user';
 };
 
-export type AssistantMessage = BaseMessage & {
+type BaseAssistantMessage = BaseMessage & {
   role: 'assistant';
-  status: 'pending' | 'complete';
+  status: 'pending' | 'complete' | 'cancelled' | 'error';
   model: string;
   modelParams: ModelParams;
   providerMetadata: ProviderMetadata;
-  resumableStreamId: string;
-  timeToFirstToken: number;
-  tokens: number;
-  tokensPerSecond: number;
 };
+
+type CompletedAssistantMessage = {
+  status: 'complete';
+  promptTokenCount: number;
+  tokenCount: number;
+  durationMs: number;
+  tokensPerSecond: number;
+  timeToFirstTokenMs: number;
+
+  reasoning?: string;
+};
+
+type PendingAssistantMessage = {
+  status: 'pending';
+};
+
+export type AssistantMessage = BaseAssistantMessage & (CompletedAssistantMessage | PendingAssistantMessage);
 
 export type Message = UserMessage | AssistantMessage;
 

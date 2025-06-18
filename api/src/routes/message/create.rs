@@ -1,4 +1,6 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Instant;
 
 use axum::http::HeaderMap;
 use axum::response::Sse;
@@ -7,14 +9,15 @@ use futures::{Stream, StreamExt, pin_mut};
 use tokio::sync::{Mutex, mpsc};
 
 use crate::convex::messages::{
-  CompleteMessageArgs, Message as ConvexMessage, MessagePart, MessageStatus, ModelParams, Role as ConvexRole,
+  Annotation as ConvexAnnotation, AnnotationArgs, CompleteMessageArgs, Message as ConvexMessage, MessagePart,
+  MessageStatus, ModelParams, Role as ConvexRole,
 };
 use crate::convex::threads::Thread;
 use crate::convex::{ConvexClient, ConvexError, messages, threads};
 use crate::convex_serde;
 use crate::openrouter::completions::{OpenrouterEvent, stream_completions, stream_openrouter_chat};
 use crate::openrouter::title::generate_title_from_content;
-use crate::openrouter::types::{ChatDelta, Message, Role};
+use crate::openrouter::types::{Annotation, ChatDelta, Message, Role};
 use crate::openrouter::{OpenrouterClient, OpenrouterError};
 use crate::prelude::*;
 
@@ -89,7 +92,7 @@ fn message_to_part(message: ConvexMessage) -> Message {
     })
     .collect();
 
-  Message { role, content, annotations: None }
+  Message { role, content }
 }
 
 #[tracing::instrument("create message", skip(state), err)]
@@ -153,6 +156,11 @@ pub async fn create_message(
       reasoning_effort: params.reasoning_effort.clone(),
       include_search: params.include_search,
     }),
+    prompt_token_count: 0.0,
+    token_count: 0.0,
+    duration_ms: 0.0,
+    tokens_per_second: 0.0,
+    time_to_first_token_ms: 0.0,
   };
 
   let (text_tx, mut chat_rx) = mpsc::channel(128);
@@ -189,7 +197,7 @@ pub async fn create_message(
 
   let stream = async_stream::stream! {
     while let Some(event) = chat_rx.recv().await {
-      yield Ok(Event::default().data(event.into_string()).event("message"))
+      yield Ok(Event::default().data(event.into_string()?).event("message"))
     }
 
     yield Ok(Event::default().event("end"));
@@ -214,27 +222,57 @@ pub enum StreamChatError {
   CompleteMessage,
   #[error("failed to set thread title")]
   SetThreadTitle,
+  #[error("failed to append annotations to message")]
+  AppendAnnotations,
 }
 
 enum ChatEvent {
   Text(String),
+  Reasoning(String),
   Cancelled,
   Error,
   Refusal(String),
   End,
   Unauthorized,
+  Annotations(Vec<ConvexAnnotation>),
 }
 
 impl ChatEvent {
-  fn into_string(self) -> String {
-    match self {
+  fn into_string(self) -> anyhow::Result<String> {
+    let string = match self {
       ChatEvent::Text(text) => format!("0:{text}"),
-      ChatEvent::Error => "1:".into(),
-      ChatEvent::Cancelled => "2:".into(),
-      ChatEvent::Refusal(refusal) => format!("3:{refusal}"),
-      ChatEvent::End => "4:".into(),
-      ChatEvent::Unauthorized => "5:".into(),
-    }
+      ChatEvent::Reasoning(reasoning) => format!("1:{reasoning}"),
+      ChatEvent::Annotations(annotations) => {
+        let serialized = serde_json::to_string(&annotations).context("failed to serialize annotations")?;
+        format!("2:{serialized}")
+      }
+      ChatEvent::Error => "3:".into(),
+      ChatEvent::Cancelled => "4:".into(),
+      ChatEvent::Refusal(refusal) => format!("5:{refusal}"),
+      ChatEvent::End => "6:".into(),
+      ChatEvent::Unauthorized => "7:".into(),
+    };
+
+    Ok(string)
+  }
+}
+
+fn sanitize_text(text: &str) -> String {
+  text.replace('\r', "").replace('\n', "\\n")
+}
+
+enum ReasoningOrText {
+  Reasoning(String),
+  Text(String),
+}
+
+fn openrouter_annotation_to_convex(annotation: Annotation) -> ConvexAnnotation {
+  match annotation {
+    Annotation::UrlCitation { url_citation } => ConvexAnnotation {
+      title: url_citation.title,
+      url: url_citation.url,
+      content: url_citation.content,
+    },
   }
 }
 
@@ -244,7 +282,7 @@ async fn stream_chat(
   mut convex_client: ConvexClient,
   chat_tx: mpsc::Sender<ChatEvent>,
   mut kill_rx: mpsc::Receiver<()>,
-  context: ChatContext,
+  mut context: ChatContext,
 ) -> Result<(), StreamChatError> {
   let using_custom_key = context.custom_key.is_some();
 
@@ -263,11 +301,13 @@ async fn stream_chat(
 
   pin_mut!(stream);
 
-  let message_id = context.message.id.clone();
-  let mut convex = convex_client.clone();
+  // region: kill listener
+
+  let kl_message_id = context.message.id.clone();
+  let mut kl_convex_client = convex_client.clone();
 
   let kill_listener = async move {
-    info!("Listening for kill signal for message ID: {}", message_id);
+    info!("Listening for kill signal for message ID: {}", kl_message_id);
 
     // if Some(_) is received, the kill signal was sent
     // if None is received the channel was closed so kill anyways
@@ -276,21 +316,34 @@ async fn stream_chat(
     info!("streaming killed, cleaning up");
     stream_trigger.cancel();
 
-    if !messages::cancel(&mut convex, message_id).await? {
+    if !messages::cancel(&mut kl_convex_client, kl_message_id).await? {
       error!("failed to cancel message in Convex");
     }
 
     Ok(ChatEvent::Cancelled)
   };
 
-  let mut convex = convex_client.clone();
-  let event_listener_chat_tx = chat_tx.clone();
+  // endregion
 
-  let message_id = context.message.id.clone();
+  let start = Instant::now();
+  let prompt_token_count = Arc::new(AtomicU32::new(0));
+  let completion_token_count = Arc::new(AtomicU32::new(0));
+  let time_to_first_token_ms = Arc::new(AtomicU32::new(0));
+
+  // region: event listener
+
+  let mut el_convex_client = convex_client.clone();
+  let el_chat_tx = chat_tx.clone();
+
+  let el_message_id = context.message.id.clone();
+
+  let el_prompt_token_count = prompt_token_count.clone();
+  let el_completion_token_count = completion_token_count.clone();
+  let el_time_to_first_token_ms = time_to_first_token_ms.clone();
 
   let event_listener = async move {
-    let chat_tx = event_listener_chat_tx;
-    let mut accumulator = String::new();
+    let mut text_accumulator = String::new();
+    let mut reasoning_accumulator = String::new();
 
     info!("Starting OpenRouter chat stream for message ID: {}", context.message.id);
 
@@ -306,6 +359,11 @@ async fn stream_chat(
         OpenrouterEvent::Error => break ChatEvent::Error,
       };
 
+      if let Some(usage) = completion.usage {
+        el_prompt_token_count.store(usage.prompt_tokens, Ordering::Relaxed);
+        el_completion_token_count.store(usage.completion_tokens, Ordering::Relaxed);
+      }
+
       if completion.choices.is_empty() {
         warn!("Received empty choices from OpenRouter response");
         continue;
@@ -313,30 +371,105 @@ async fn stream_chat(
 
       let choice = completion.choices.swap_remove(0);
 
-      let text = match choice.delta {
-        ChatDelta::Text { content } => content,
+      let (text, annotations) = match choice.delta {
+        ChatDelta::Text {
+          content,
+          reasoning,
+          annotations,
+        } => {
+          if let Some(reasoning) = reasoning {
+            info!("Received reasoning: {}", reasoning);
+            (ReasoningOrText::Reasoning(reasoning), annotations)
+          } else {
+            (ReasoningOrText::Text(content), annotations)
+          }
+        }
         ChatDelta::Finished { .. } => break ChatEvent::End,
         ChatDelta::Refusal { refusal } => break ChatEvent::Refusal(refusal),
       };
 
-      accumulator.push_str(&text);
-      let _ = chat_tx
-        .send(ChatEvent::Text(text.replace('\r', "").replace('\n', "\\n")))
-        .await;
+      if el_time_to_first_token_ms.load(Ordering::Relaxed) == 0 {
+        let elapsed = start.elapsed();
+        el_time_to_first_token_ms.store(elapsed.as_millis() as u32, Ordering::Relaxed);
+      }
 
-      if accumulator.len() >= 100 {
-        let success = messages::append_text(&mut convex, context.message.id.clone(), accumulator.clone()).await?;
+      let event = match text {
+        ReasoningOrText::Reasoning(text) => {
+          reasoning_accumulator.push_str(&text);
+          ChatEvent::Reasoning(sanitize_text(&text))
+        }
+        ReasoningOrText::Text(text) => {
+          text_accumulator.push_str(&text);
+          ChatEvent::Text(sanitize_text(&text))
+        }
+      };
+
+      if let Some(annotations) = annotations {
+        let annotations = annotations
+          .into_iter()
+          .map(openrouter_annotation_to_convex)
+          .collect::<Vec<_>>();
+
+        if !annotations.is_empty() {
+          let _ = el_chat_tx.send(ChatEvent::Annotations(annotations.clone())).await;
+
+          let args = AnnotationArgs {
+            message_id: context.message.id.clone(),
+            annotations,
+          };
+
+          let success = messages::append_annotations(&mut el_convex_client, args).await?;
+
+          if !success {
+            return Err(StreamChatError::AppendAnnotations);
+          }
+        }
+      }
+
+      let _ = el_chat_tx.send(event).await;
+
+      if text_accumulator.len() >= 100 {
+        let success = messages::append_text(
+          &mut el_convex_client,
+          context.message.id.clone(),
+          text_accumulator.clone(),
+        )
+        .await?;
 
         if !success {
           return Err(StreamChatError::AppendText);
         }
 
-        accumulator.clear();
+        text_accumulator.clear();
+      }
+
+      if reasoning_accumulator.len() >= 100 {
+        let success = messages::append_reasoning(
+          &mut el_convex_client,
+          context.message.id.clone(),
+          reasoning_accumulator.clone(),
+        )
+        .await?;
+
+        if !success {
+          return Err(StreamChatError::AppendText);
+        }
+
+        reasoning_accumulator.clear();
       }
     };
 
-    if !accumulator.is_empty() {
-      let success = messages::append_text(&mut convex, context.message.id, accumulator).await?;
+    if !text_accumulator.is_empty() {
+      let success = messages::append_text(&mut el_convex_client, context.message.id.clone(), text_accumulator).await?;
+
+      if !success {
+        return Err(StreamChatError::AppendText);
+      }
+    }
+
+    if !reasoning_accumulator.is_empty() {
+      let success =
+        messages::append_reasoning(&mut el_convex_client, context.message.id, reasoning_accumulator).await?;
 
       if !success {
         return Err(StreamChatError::AppendText);
@@ -346,14 +479,35 @@ async fn stream_chat(
     Ok(final_event)
   };
 
-  info!("Starting event listeners for message ID: {}", message_id);
+  // endregion
+
+  info!("Starting event listeners for message ID: {}", el_message_id);
 
   let final_event = tokio::select! {
     res = event_listener => res,
     res = kill_listener => res,
   }?;
 
+  let token_count = completion_token_count.load(Ordering::Relaxed);
+  let time_to_first_token_ms = time_to_first_token_ms.load(Ordering::Relaxed);
+
+  let duration = start.elapsed();
+  let tokens_per_second = if duration.as_secs() > 0 {
+    token_count as f64 / duration.as_secs_f64()
+  } else {
+    token_count as f64
+  };
+  let duration_ms = duration.as_millis() as u32;
+
+  let prompt_token_count = prompt_token_count.load(Ordering::Relaxed);
+
   let _ = chat_tx.send(final_event).await;
+
+  context.complete_args.prompt_token_count = prompt_token_count as f64;
+  context.complete_args.token_count = token_count as f64;
+  context.complete_args.duration_ms = duration_ms as f64;
+  context.complete_args.tokens_per_second = tokens_per_second;
+  context.complete_args.time_to_first_token_ms = time_to_first_token_ms as f64;
 
   let success = messages::complete(&mut convex_client, &context.complete_args).await?;
 

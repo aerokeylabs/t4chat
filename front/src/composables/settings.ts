@@ -45,8 +45,8 @@ export const useSettings = defineStore('settings', () => {
         return value;
       },
       set(newValue) {
-        if (newValue?._updateFromApi === true) console.trace('Skipping committing update from API:', newValue);
-        else console.trace('committing new value:', newValue);
+        if (newValue?._updateFromApi === true) console.debug('Skipping committing update from API:', newValue);
+        else console.debug('committing new value:', newValue);
         if (newValue != null && newValue._updateFromApi !== true) debouncedUpdateCustomization(toRaw(newValue));
 
         value = newValue;
@@ -62,7 +62,7 @@ export const useSettings = defineStore('settings', () => {
     data,
     (data) => {
       if (data == null) return null;
-      console.trace('data updated:', data);
+      console.debug('data updated:', data);
 
       const { userName, userOccupation, userTraits, hidePersonalInfo, mainFont, codeFont } = data;
 

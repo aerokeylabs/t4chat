@@ -7,11 +7,13 @@ const keys = useKeys();
 </script>
 
 <template>
-  <h1 class="text-2xl">API Keys</h1>
-  <span class="text-sm">Bring your own API keys for select models.</span>
+  <section>
+    <h1 class="text-2xl">API Keys</h1>
+    <span class="text-sm">Bring your own API keys for select models.</span>
 
-  <Label class="text-secondary-foreground mt-4 flex flex-col items-start gap-4">
-    <span>OpenRouter Key</span>
-    <SensitiveInput v-model="keys.openrouter" placeholder="sk-..." maxlength="256" class="font-mono" />
-  </Label>
+    <Label class="text-secondary-foreground mt-4 flex flex-col items-start gap-4">
+      <span>OpenRouter Key</span>
+      <SensitiveInput v-model="keys.openrouter" placeholder="sk-..." maxlength="256" class="font-mono" />
+    </Label>
+  </section>
 </template>

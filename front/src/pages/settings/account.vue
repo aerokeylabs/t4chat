@@ -24,7 +24,8 @@ async function deleteAccount() {
   try {
     isDeleting.value = true;
     // Call Clerk's deleteAccount method
-    await clerk.value.deleteAccount();
+    // await clerk.value.openUserProfile();
+    throw new Error('todo');
     // Redirect to home after successful deletion
     router.push('/');
   } catch (error) {
@@ -37,7 +38,7 @@ async function deleteAccount() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <section class="flex flex-col gap-6">
     <div>
       <h1 class="text-2xl font-bold">Account Settings</h1>
       <p class="text-muted-foreground">Manage your account settings and preferences.</p>
@@ -68,5 +69,5 @@ async function deleteAccount() {
         </DialogContent>
       </Dialog>
     </div>
-  </div>
+  </section>
 </template>

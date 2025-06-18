@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Dialog,
   DialogContent,
@@ -11,14 +10,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { useMutation, useReactiveQuery, useConvex } from '@/composables/convex';
-import type { Id } from '@/convex/_generated/dataModel';
-import type { Message, AssistantMessage } from '@/lib/types/convex';
+import { useConvex, useMutation, useReactiveQuery } from '@/composables/convex';
 import { api } from '@/convex/_generated/api';
-import { ref, computed } from 'vue';
+import type { Id } from '@/convex/_generated/dataModel';
+import type { AssistantMessage, Message } from '@/lib/types/convex';
 import { TrashIcon } from 'lucide-vue-next';
-import { toast } from 'vue-sonner';
 import moment from 'moment';
+import { computed, ref } from 'vue';
+import { toast } from 'vue-sonner';
 
 const deleteThreadMutation = useMutation(api.threads.deleteThreadById);
 
@@ -91,19 +90,17 @@ const showDeleteAllDialog = ref(false);
 const hasConversations = computed(() => formattedThreads.value.length > 0);
 
 const selectAll = computed({
-  get: () => formattedThreads.value.length > 0 && 
-    formattedThreads.value.every(t => selectedThreads.value.includes(t.id)),
+  get: () =>
+    formattedThreads.value.length > 0 && formattedThreads.value.every((t) => selectedThreads.value.includes(t.id)),
   set: (value: boolean) => {
     if (value) {
-      const newSelections = formattedThreads.value
-        .map(t => t.id)
-        .filter(id => !selectedThreads.value.includes(id));
+      const newSelections = formattedThreads.value.map((t) => t.id).filter((id) => !selectedThreads.value.includes(id));
       selectedThreads.value = [...selectedThreads.value, ...newSelections];
     } else {
-      const threadIds = new Set(formattedThreads.value.map(t => t.id));
-      selectedThreads.value = selectedThreads.value.filter(id => !threadIds.has(id));
+      const threadIds = new Set(formattedThreads.value.map((t) => t.id));
+      selectedThreads.value = selectedThreads.value.filter((id) => !threadIds.has(id));
     }
-  }
+  },
 });
 
 async function deleteSelected() {
@@ -120,24 +117,22 @@ async function deleteSelected() {
 }
 
 async function exportSelected() {
-  const selectedData = formattedThreads.value.filter((thread) => 
-    selectedThreads.value.includes(thread.id)
-  );
+  const selectedData = formattedThreads.value.filter((thread) => selectedThreads.value.includes(thread.id));
 
   try {
     toast.info('Preparing export, this may take a moment...');
-    
+
     const exportData = [];
-    
+
     for (const thread of selectedData) {
       const messages = await getMessagesForThread(thread.id);
-      
+
       const formattedMessages = messages.map((msg) => {
         const message = msg as unknown as Message;
-        
+
         const textContent = message.parts
           .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-          .map(part => part.text)
+          .map((part) => part.text)
           .join('\n');
 
         const baseMessage = {
@@ -153,7 +148,7 @@ async function exportSelected() {
             ...baseMessage,
             status: assistantMsg.status,
             model: assistantMsg.model,
-            ...(assistantMsg.modelParams ? { modelParams: assistantMsg.modelParams } : {})
+            ...(assistantMsg.modelParams ? { modelParams: assistantMsg.modelParams } : {}),
           };
         }
         return baseMessage;
@@ -165,7 +160,7 @@ async function exportSelected() {
         date: thread.date,
         createdAt: new Date(thread.createdAt).toISOString(),
         messageCount: formattedMessages.length,
-        messages: formattedMessages
+        messages: formattedMessages,
       });
     }
 
@@ -180,7 +175,7 @@ async function exportSelected() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     toast.success('Export completed successfully');
   } catch (error) {
     console.error('Error during export:', error);
@@ -190,26 +185,51 @@ async function exportSelected() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div>
-      <h1 class="text-2xl font-bold">History & Sync</h1>
-      <p class="text-muted-foreground">Manage your chat history and synchronization preferences.</p>
-    </div>
+  <section class="flex flex-col">
+    <h1 class="text-2xl font-bold">History & Sync</h1>
+    <p class="text-muted-foreground">Manage your chat history and synchronization preferences.</p>
 
-    <div class="flex max-h-[70vh] min-h-[400px] flex-col rounded-lg border">
-      <div class="flex-shrink-0 border-b p-6">
-        <div class="flex items-center justify-between">
-          <h2 class="text-xl font-semibold">Message History</h2>
+    <h2 class="mt-6 text-xl font-semibold">Message History</h2>
 
-          <div v-if="!threadsData" class="text-muted-foreground text-sm">Loading conversations...</div>
-          <div class="flex gap-2" v-else-if="hasConversations">
+    <div class="message-history-table mt-4 flex flex-col rounded-lg border">
+      <div v-if="!threadsData" class="text-muted-foreground text-sm">Loading conversations...</div>
+
+      <div v-if="!threadsData" class="flex flex-1 items-center justify-center py-12 text-center">
+        <p class="text-muted-foreground">Loading conversations...</p>
+      </div>
+      <div v-else-if="!hasConversations" class="flex flex-1 items-center justify-center py-12 text-center">
+        <p class="text-muted-foreground">No conversation history found.</p>
+      </div>
+
+      <div v-else class="flex h-full flex-col overflow-hidden">
+        <div class="flex flex-shrink-0 items-center justify-between gap-2 border-b py-3 pl-5 pr-3">
+          <div class="flex items-center gap-2">
+            <Checkbox
+              :model-value="selectAll"
+              @update:model-value="
+                (val: boolean | 'indeterminate') => {
+                  if (val !== 'indeterminate') selectAll = val;
+                }
+              "
+              :indeterminate="
+                formattedThreads.some((t) => selectedThreads.includes(t.id)) &&
+                !formattedThreads.every((t) => selectedThreads.includes(t.id))
+              "
+              class="h-4 w-4"
+            />
+            <span class="text-muted-foreground text-sm font-medium">Select all</span>
+          </div>
+
+          <div class="flex gap-2">
             <Button variant="outline" size="sm" :disabled="selectedThreads.length === 0" @click="exportSelected">
               Export Selected
             </Button>
 
             <Dialog v-model:open="showDeleteDialog">
               <DialogTrigger as-child>
-                <Button variant="destructive" size="sm" :disabled="selectedThreads.length === 0"> Delete Selected </Button>
+                <Button variant="destructive" size="sm" :disabled="selectedThreads.length === 0">
+                  Delete Selected
+                </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -245,76 +265,57 @@ async function exportSelected() {
             </Dialog>
           </div>
         </div>
-      </div>
 
-      <div v-if="!threadsData" class="flex flex-1 items-center justify-center py-12 text-center">
-        <p class="text-muted-foreground">Loading conversations...</p>
-      </div>
-      <div v-else-if="!hasConversations" class="flex flex-1 items-center justify-center py-12 text-center">
-        <p class="text-muted-foreground">No conversation history found.</p>
-      </div>
-
-      <div v-else class="flex h-full flex-col overflow-hidden">
-        <div
-          class="bg-background/95 supports-[backdrop-filter]:bg-background/60 flex flex-shrink-0 items-center gap-2 border-b px-6 py-3 backdrop-blur"
-        >
-          <Checkbox
-            :model-value="selectAll"
-            @update:model-value="(val: boolean | 'indeterminate') => { if (val !== 'indeterminate') selectAll = val }"
-            :indeterminate="formattedThreads.some(t => selectedThreads.includes(t.id)) && !formattedThreads.every(t => selectedThreads.includes(t.id))"
-            class="h-4 w-4"
-          />
-          <span class="text-muted-foreground text-sm font-medium">Select all</span>
-        </div>
-
-        <div class="flex-1 overflow-hidden">
-          <ScrollArea class="h-full w-full">
-            <div class="space-y-1 px-4 py-2">
-              <div>
-                <div
-                  v-for="thread in formattedThreads"
-                  :key="thread.id"
-                  class="hover:bg-accent/50 group relative flex items-center rounded-md p-2"
-                  :class="{ 'bg-accent/30': selectedThreads.includes(thread.id) }"
-                >
-                  <div class="flex w-full items-center gap-3">
-                    <Checkbox
-                      :model-value="selectedThreads.includes(thread.id)"
-                      @update:model-value="checked => {
-                        if (checked) {
-                          if (!selectedThreads.includes(thread.id)) {
-                            selectedThreads.push(thread.id);
-                          }
-                        } else {
-                          const index = selectedThreads.indexOf(thread.id);
-                          if (index !== -1) {
-                            selectedThreads.splice(index, 1);
-                          }
-                        }
-                      }"
-                      class="h-4 w-4 flex-shrink-0"
-                    />
-                    <div class="min-w-0 flex-1">
-                      <p class="truncate font-medium">{{ thread.title }}</p>
-                      <div class="text-muted-foreground flex items-center gap-2 text-xs">
-                        <span>{{ thread.date }}</span>
-                        <span>•</span>
-                        <span>{{ thread.messages }} message{{ thread.messages !== 1 ? 's' : '' }}</span>
-                      </div>
-                    </div>
-
-                    <div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <Button variant="ghost" size="icon" class="h-7 w-7" @click.stop="() => deleteThread(thread.id)">
-                        <TrashIcon class="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
+        <div class="custom-scrollbar flex h-full min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-1">
+          <div
+            v-for="thread in formattedThreads"
+            :key="thread.id"
+            class="hover:bg-accent/50 group relative flex w-full items-center rounded-md p-2 px-4"
+            :class="{ 'bg-accent/30': selectedThreads.includes(thread.id) }"
+          >
+            <div class="flex w-full items-center gap-3">
+              <Checkbox
+                :model-value="selectedThreads.includes(thread.id)"
+                @update:model-value="
+                  (checked) => {
+                    if (checked) {
+                      if (!selectedThreads.includes(thread.id)) {
+                        selectedThreads.push(thread.id);
+                      }
+                    } else {
+                      const index = selectedThreads.indexOf(thread.id);
+                      if (index !== -1) {
+                        selectedThreads.splice(index, 1);
+                      }
+                    }
+                  }
+                "
+                class="h-4 w-4 flex-shrink-0"
+              />
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-medium">{{ thread.title }}</p>
+                <div class="text-muted-foreground flex items-center gap-2 text-xs">
+                  <span>{{ thread.date }}</span>
+                  <span>•</span>
+                  <span>{{ thread.messages }} message{{ thread.messages !== 1 ? 's' : '' }}</span>
                 </div>
               </div>
+
+              <div class="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <Button variant="ghost" size="icon" class="h-7 w-7" @click.stop="() => deleteThread(thread.id)">
+                  <TrashIcon class="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 </template>
+
+<style>
+.message-history-table {
+  max-height: 600px;
+}
+</style>

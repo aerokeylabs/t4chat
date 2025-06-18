@@ -11,48 +11,37 @@ const customizationSettingsValidator = v.object({
   codeFont: v.optional(v.string()),
 });
 
+const DEFAULT_SETTINGS = {
+  userName: '',
+  userOccupation: '',
+  userTraits: [],
+  hidePersonalInfo: false,
+  mainFont: 'Inter',
+  codeFont: 'Fira Code',
+  disableHorizontalLines: false,
+  favoriteModels: [],
+  hasMigrated: false,
+  latestTOSDate: 0,
+  statsForNerds: false,
+  streamerMode: false,
+  theme: 'system',
+};
+
 export const getSettings = query({
   handler: async (ctx) => {
     const identity = await getIdentity(ctx);
-    const userId = identity.subject;
+    const userId = identity.tokenIdentifier;
 
     const existingSettings = await ctx.db
       .query('settings')
       .withIndex('by_user', (q) => q.eq('userId', userId))
       .first();
 
-    if (!existingSettings) {
-      return {
-        userName: '',
-        userOccupation: '',
-        userTraits: [],
-        hidePersonalInfo: false,
-        mainFont: 'Inter',
-        codeFont: 'Fira Code',
-        disableHorizontalLines: false,
-        favoriteModels: [],
-        hasMigrated: false,
-        latestTOSDate: 0,
-        statsForNerds: false,
-        streamerMode: false,
-        theme: 'system',
-      };
-    }
+    if (existingSettings == null) return DEFAULT_SETTINGS;
 
     return {
-      userName: existingSettings.userName || '',
-      userOccupation: existingSettings.userOccupation || '',
-      userTraits: existingSettings.userTraits || [],
-      hidePersonalInfo: existingSettings.hidePersonalInfo || false,
-      mainFont: existingSettings.mainFont || 'Inter',
-      codeFont: existingSettings.codeFont || 'Fira Code',
-      disableHorizontalLines: existingSettings.disableHorizontalLines,
-      favoriteModels: existingSettings.favoriteModels,
-      hasMigrated: existingSettings.hasMigrated,
-      latestTOSDate: existingSettings.latestTOSDate,
-      statsForNerds: existingSettings.statsForNerds,
-      streamerMode: existingSettings.streamerMode,
-      theme: existingSettings.theme,
+      ...DEFAULT_SETTINGS,
+      ...existingSettings,
     };
   },
 });
@@ -61,7 +50,7 @@ export const updateSettings = mutation({
   args: { settings: customizationSettingsValidator },
   handler: async (ctx, args) => {
     const identity = await getIdentity(ctx);
-    const userId = identity.subject;
+    const userId = identity.tokenIdentifier;
 
     const existingSettings = await ctx.db
       .query('settings')
@@ -69,42 +58,19 @@ export const updateSettings = mutation({
       .first();
 
     if (existingSettings) {
-      if (
-        args.settings.hidePersonalInfo !== undefined &&
-        args.settings.hidePersonalInfo !== existingSettings.hidePersonalInfo
-      ) {
-        console.log(
-          'Convex: Updating hidePersonalInfo from',
-          existingSettings.hidePersonalInfo,
-          'to',
-          args.settings.hidePersonalInfo,
-        );
-      }
-
       return ctx.db.patch(existingSettings._id, {
-        ...(args.settings.userName !== undefined && { userName: args.settings.userName }),
-        ...(args.settings.userOccupation !== undefined && { userOccupation: args.settings.userOccupation }),
-        ...(args.settings.userTraits !== undefined && { userTraits: args.settings.userTraits }),
-        ...(args.settings.hidePersonalInfo !== undefined && { hidePersonalInfo: args.settings.hidePersonalInfo }),
-        ...(args.settings.mainFont !== undefined && { mainFont: args.settings.mainFont }),
-        ...(args.settings.codeFont !== undefined && { codeFont: args.settings.codeFont }),
+        userName: args.settings.userName,
+        userOccupation: args.settings.userOccupation,
+        userTraits: args.settings.userTraits,
+        hidePersonalInfo: args.settings.hidePersonalInfo,
+        mainFont: args.settings.mainFont,
+        codeFont: args.settings.codeFont,
       });
     } else {
       return ctx.db.insert('settings', {
         userId,
-        userName: args.settings.userName || '',
-        userOccupation: args.settings.userOccupation || '',
-        userTraits: args.settings.userTraits || [],
-        hidePersonalInfo: args.settings.hidePersonalInfo || false,
-        mainFont: args.settings.mainFont || 'Inter',
-        codeFont: args.settings.codeFont || 'Fira Code',
-        disableHorizontalLines: false,
-        favoriteModels: [],
-        hasMigrated: false,
-        latestTOSDate: 0,
-        statsForNerds: false,
-        streamerMode: false,
-        theme: 'system',
+        ...args.settings,
+        ...DEFAULT_SETTINGS,
       });
     }
   },

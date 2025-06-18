@@ -29,7 +29,7 @@ function addTrait(trait: string) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-8">
+  <section class="flex flex-col gap-8">
     <div>
       <h1 class="text-2xl font-bold">Customization</h1>
       <p class="text-muted-foreground">Personalize your <Name /> experience.</p>
@@ -153,5 +153,5 @@ function addTrait(trait: string) {
     <div v-else>
       <p class="text-muted-foreground">Loading customization settings...</p>
     </div>
-  </div>
+  </section>
 </template>

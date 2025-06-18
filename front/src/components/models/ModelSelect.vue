@@ -43,34 +43,34 @@ const displayedModels = computed(() => {
   <div class="model-select">
     <div class="model-select-inner">
       <div class="model-list custom-scrollbar">
+        <Button
+          v-if="!hasQuery && selected.model != null"
+          variant="ghost"
+          size="xl"
+          class="bg-secondary w-full justify-between"
+        >
+          <ModelListItem :model="selected.model" />
+        </Button>
+
+        <template v-for="model in displayedModels" :key="model.id">
           <Button
-            v-if="!hasQuery && selected.model != null"
             variant="ghost"
             size="xl"
-            class="bg-secondary w-full justify-between"
+            class="w-full justify-between"
+            :class="{ 'bg-secondary': selected.slug === model.slug }"
+            @click="selectModel(model.slug)"
           >
-            <ModelListItem :model="selected.model" />
+            <ModelListItem :model />
           </Button>
+        </template>
 
-          <template v-for="model in displayedModels" :key="model.id">
-            <Button
-              variant="ghost"
-              size="xl"
-              class="w-full justify-between"
-              :class="{ 'bg-secondary': selected.slug === model.slug }"
-              @click="selectModel(model.slug)"
-            >
-              <ModelListItem :model />
-            </Button>
-          </template>
-
-          <div v-if="displayedModels.length === 0" class="flex w-full">
-            <span class="text-muted-foreground w-full p-4 text-center">
-              {{ hasQuery ? 'No models found' : 'No models available' }}
-            </span>
-          </div>
+        <div v-if="displayedModels.length === 0" class="flex w-full">
+          <span class="text-muted-foreground w-full p-4 text-center">
+            {{ hasQuery ? 'No models found' : 'No models available' }}
+          </span>
+        </div>
       </div>
-      
+
       <div class="search-container">
         <IconInput v-model="query" type="text" placeholder="Search all OpenRouter models...">
           <SearchIcon />

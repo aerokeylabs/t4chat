@@ -167,13 +167,11 @@ function clearFilters() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
-    <div>
-      <h1 class="text-2xl font-bold">Models</h1>
-      <p class="text-muted-foreground">Configure which models are available in the model selector.</p>
-    </div>
+  <section class="flex flex-col">
+    <h1 class="text-2xl font-bold">Models</h1>
+    <p class="text-muted-foreground">Configure which models are available in the model selector.</p>
 
-    <div class="flex flex-col gap-6 md:flex-row">
+    <div class="mt-6 flex flex-col gap-6 md:flex-row">
       <!-- Filters sidebar -->
       <div class="w-full space-y-6 md:w-64">
         <div>
@@ -264,5 +262,5 @@ function clearFilters() {
         </div>
       </div>
     </div>
-  </div>
+  </section>
 </template>

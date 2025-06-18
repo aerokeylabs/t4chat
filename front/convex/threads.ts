@@ -369,7 +369,7 @@ export const getMessageCounts = query({
           return { threadId, count: messages.length };
         }
         return { threadId, count: 0 };
-      })
+      }),
     );
 
     // Convert to a record for easier lookup

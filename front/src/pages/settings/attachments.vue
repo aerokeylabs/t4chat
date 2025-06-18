@@ -95,7 +95,7 @@ function getFileIcon(type: string): string {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6">
+  <section class="flex flex-col gap-6">
     <div>
       <h1 class="text-2xl font-bold">Attachments</h1>
       <p class="text-muted-foreground">View and manage files you've uploaded during chats.</p>
@@ -194,5 +194,5 @@ function getFileIcon(type: string): string {
         </Card>
       </div>
     </div>
-  </div>
+  </section>
 </template>

@@ -11,10 +11,9 @@ export type CreateMessageRequest = {
   responseMessageId: string;
   model: string;
   modelParams: ModelParamsRequest | null;
-  reasoningEffort: ReasoningEffortRequest | null;
 };
 
-export type ModelParamsRequest = { reasoningEffort: string; includeSearch: boolean };
+export type ModelParamsRequest = { reasoningEffort: ReasoningEffortRequest | null; includeSearch: boolean };
 
 export type ModelResponse = {
   id: string;

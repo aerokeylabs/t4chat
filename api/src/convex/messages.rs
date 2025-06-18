@@ -79,11 +79,18 @@ pub async fn get_by_thread_id(client: &mut ConvexClient, thread_id: String) -> R
 
   Ok(response.messages)
 }
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum ReasoningEffort {
+  Low,
+  Medium,
+  High,
+}
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelParams {
-  pub reasoning_effort: String,
+  pub reasoning_effort: Option<ReasoningEffort>,
   pub include_search: bool,
 }
 

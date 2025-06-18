@@ -44,7 +44,7 @@ async function onSend(message: string, files?: File[]) {
 
   scrollToBottom(true);
 
-  const modelParams = { includeSearch: selected.searchEnabled, reasoningEffort: 'medium' };
+  const modelParams = { includeSearch: selected.searchEnabled, reasoningEffort: selected.reasoningEffort };
 
   let activeThreadId: string;
 
@@ -127,7 +127,10 @@ async function onSend(message: string, files?: File[]) {
         threadId: threadId.value as Id<'threads'>,
         parts,
         model: modelSlug,
-        modelParams,
+        modelParams: {
+          includeSearch: modelParams.includeSearch,
+          reasoningEffort: modelParams.reasoningEffort ?? undefined,
+        },
       });
 
       if (result == null) {
@@ -143,7 +146,6 @@ async function onSend(message: string, files?: File[]) {
         responseMessageId: result.assistantMessageId,
         model: modelId,
         modelParams,
-        reasoningEffort: selected.reasoningEffort,
       });
 
       activeThreadId = threadId.value;
@@ -151,7 +153,14 @@ async function onSend(message: string, files?: File[]) {
       console.debug('create new thread with content', message);
 
       const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
-      const thread = await createThreadMutation({ model: modelSlug, modelParams, parts });
+      const thread = await createThreadMutation({
+        model: modelSlug,
+        modelParams: {
+          includeSearch: modelParams.includeSearch,
+          reasoningEffort: modelParams.reasoningEffort ?? undefined,
+        },
+        parts,
+      });
 
       console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
 
@@ -163,7 +172,6 @@ async function onSend(message: string, files?: File[]) {
         responseMessageId: thread.assistantMessageId,
         model: modelId,
         modelParams,
-        reasoningEffort: selected.reasoningEffort,
       });
 
       activeThreadId = thread.threadId;

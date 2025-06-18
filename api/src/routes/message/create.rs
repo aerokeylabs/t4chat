@@ -11,7 +11,7 @@ use tokio::sync::{Mutex, mpsc};
 
 use crate::convex::messages::{
   Annotation as ConvexAnnotation, AnnotationArgs, CompleteMessageArgs, Message as ConvexMessage, MessagePart,
-  MessageStatus, ModelParams, Role as ConvexRole,
+  MessageStatus, ModelParams, ReasoningEffort as ConvexReasoningEffort, Role as ConvexRole,
 };
 use crate::convex::threads::Thread;
 use crate::convex::{ConvexClient, ConvexError, attachments, messages, threads};
@@ -27,11 +27,11 @@ use crate::prelude::*;
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelParamsRequest {
-  pub reasoning_effort: String,
+  pub reasoning_effort: Option<ReasoningEffortRequest>,
   pub include_search: bool,
 }
 
-#[derive(Debug, Deserialize, Type)]
+#[derive(Clone, Copy, Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub enum ReasoningEffortRequest {
   Low,
@@ -49,6 +49,16 @@ impl From<ReasoningEffortRequest> for ReasoningEffort {
   }
 }
 
+impl From<ReasoningEffortRequest> for ConvexReasoningEffort {
+  fn from(val: ReasoningEffortRequest) -> Self {
+    match val {
+      ReasoningEffortRequest::Low => ConvexReasoningEffort::Low,
+      ReasoningEffortRequest::Medium => ConvexReasoningEffort::Medium,
+      ReasoningEffortRequest::High => ConvexReasoningEffort::High,
+    }
+  }
+}
+
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateMessageRequest {
@@ -56,7 +66,6 @@ pub struct CreateMessageRequest {
   pub response_message_id: String,
   pub model: String,
   pub model_params: Option<ModelParamsRequest>,
-  pub reasoning_effort: Option<ReasoningEffortRequest>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -254,7 +263,7 @@ pub async fn create_message(
     message_id: message.id.clone(),
     model: payload.model.clone(),
     model_params: payload.model_params.as_ref().map(|params| ModelParams {
-      reasoning_effort: params.reasoning_effort.clone(),
+      reasoning_effort: params.reasoning_effort.map(|effort| effort.into()),
       include_search: params.include_search,
     }),
     prompt_token_count: 0.0,
@@ -276,7 +285,9 @@ pub async fn create_message(
   let active_threads = state.active_threads.clone();
   let thread_id = thread.id.clone();
 
-  let reasoning_effort = payload.reasoning_effort.map(|effort| effort.into());
+  let reasoning_effort = payload
+    .model_params
+    .and_then(|p| p.reasoning_effort.map(|effort| effort.into()));
 
   let context = ChatContext {
     model: model.to_string(),

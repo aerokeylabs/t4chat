@@ -8,7 +8,7 @@ export const messagePartValidator = v.union(
 
 export const modelParamsValidator = v.object({
   includeSearch: v.boolean(),
-  reasoningEffort: v.string(),
+  reasoningEffort: v.optional(v.string()),
 });
 
 export default defineSchema({

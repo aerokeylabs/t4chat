@@ -28,9 +28,3 @@ pub mod prelude {
 
   pub type Timestamp = chrono::DateTime<chrono::Utc>;
 }
-
-#[derive(Debug, Serialize, Type)]
-pub struct TestType {
-  pub awa: String,
-  pub wawa: i32,
-}

@@ -5,13 +5,15 @@ import Prose from '@/components/Prose.vue';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useReactiveQuery } from '@/composables/convex';
+import { useMutation, useReactiveQuery } from '@/composables/convex';
+import { useSelectedModel } from '@/composables/selectedModel';
 import { api } from '@/convex/_generated/api';
 import type { AssistantMessage } from '@/lib/types/convex';
 import { copyToClipboard, displayModelName } from '@/lib/utils';
 import { ChevronDownIcon, ClockIcon, CopyIcon, CpuIcon, RefreshCcwIcon, SplitIcon, ZapIcon } from 'lucide-vue-next';
 import moment from 'moment';
 import { computed } from 'vue';
+import { toast } from 'vue-sonner';
 
 const props = defineProps<{
   message: AssistantMessage;
@@ -67,6 +69,26 @@ function copy() {
       .map((part) => part.text)
       .join('\n'),
   );
+}
+
+const selected = useSelectedModel();
+
+const retryMessageMutation = useMutation(api.messages.retryMessage);
+
+function retryMessage() {
+  if (selected.slug == null) {
+    toast.error('No model selected');
+    return;
+  }
+
+  retryMessageMutation({
+    messageId: props.message._id,
+    model: selected.slug,
+    modelParams: {
+      reasoningEffort: selected.reasoningEffort ?? undefined,
+      includeSearch: selected.searchEnabled,
+    },
+  });
 }
 </script>
 
@@ -128,7 +150,7 @@ function copy() {
 
       <Tooltip>
         <TooltipTrigger>
-          <Button variant="ghost" size="icon-sm">
+          <Button variant="ghost" size="icon-sm" @click="retryMessage">
             <RefreshCcwIcon />
           </Button>
         </TooltipTrigger>

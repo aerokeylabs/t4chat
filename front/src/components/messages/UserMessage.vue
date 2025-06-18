@@ -3,9 +3,13 @@ import MessagePartAttachment from '@/components/messages/MessagePartAttachment.v
 import MessagePartText from '@/components/messages/MessagePartText.vue';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { useMutation } from '@/composables/convex';
+import { useSelectedModel } from '@/composables/selectedModel';
+import { api } from '@/convex/_generated/api';
 import type { UserMessage } from '@/lib/types/convex';
 import { copyToClipboard } from '@/lib/utils';
 import { CopyIcon, EditIcon, RefreshCcwIcon } from 'lucide-vue-next';
+import { toast } from 'vue-sonner';
 
 const props = defineProps<{
   message: UserMessage;
@@ -21,6 +25,26 @@ function copy() {
       .join('\n'),
   );
 }
+
+const selected = useSelectedModel();
+
+const retryMessageMutation = useMutation(api.messages.retryMessage);
+
+function retryMessage() {
+  if (selected.slug == null) {
+    toast.error('No model selected');
+    return;
+  }
+
+  retryMessageMutation({
+    messageId: props.message._id,
+    model: selected.slug,
+    modelParams: {
+      reasoningEffort: selected.reasoningEffort ?? undefined,
+      includeSearch: selected.searchEnabled,
+    },
+  });
+}
 </script>
 
 <template>
@@ -35,7 +59,7 @@ function copy() {
     <div class="message-controls">
       <Tooltip>
         <TooltipTrigger>
-          <Button variant="ghost" size="icon-sm">
+          <Button variant="ghost" size="icon-sm" @click="retryMessage">
             <RefreshCcwIcon />
           </Button>
         </TooltipTrigger>

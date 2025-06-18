@@ -1,6 +1,8 @@
 import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { getIdentity, validateKey } from './utils';
+import { modelParamsValidator } from './schema';
+import { Id } from './_generated/dataModel';
 
 export const getById = query({
   args: { id: v.id('messages') },
@@ -259,5 +261,70 @@ export const apiCancel = mutation({
     }
 
     return { _id: message._id };
+  },
+});
+
+export const retryMessage = mutation({
+  args: { messageId: v.id('messages'), model: v.string(), modelParams: v.optional(modelParamsValidator) },
+  handler: async (ctx, { messageId, model, modelParams }) => {
+    const identity = await getIdentity(ctx);
+    const userId = identity.tokenIdentifier;
+
+    const message = await ctx.db.get(messageId);
+    if (message?.userId !== userId) {
+      throw new ConvexError('Message not found or unauthorized');
+    }
+
+    const threadId = message.threadId;
+
+    let assistantMessageId: Id<'messages'>;
+
+    // if retrying assistant message, reset status and parts
+    // otherwise find the assistant message after the user message, or create it if it does not exist
+    if (message.role === 'assistant') {
+      await ctx.db.patch(message._id, {
+        status: 'pending',
+        parts: [],
+        reasoning: undefined,
+        annotations: undefined,
+      });
+
+      assistantMessageId = message._id;
+    } else {
+      const messages = await ctx.db
+        .query('messages')
+        .withIndex('by_thread', (q) => q.eq('threadId', threadId))
+        .order('asc')
+        .collect();
+
+      // find message after messageId that is an assistant message
+      const assistantMessage = messages.find(
+        (msg) => msg.role === 'assistant' && msg._creationTime > message._creationTime,
+      );
+
+      if (assistantMessage) {
+        await ctx.db.patch(assistantMessage._id, {
+          status: 'pending',
+          parts: [],
+          reasoning: undefined,
+          annotations: undefined,
+        });
+        assistantMessageId = assistantMessage._id;
+      } else {
+        assistantMessageId = await ctx.db.insert('messages', {
+          parts: [],
+          role: 'assistant',
+          attachmentIds: [],
+          attachments: [],
+          threadId,
+          userId,
+          status: 'pending',
+          model,
+          modelParams,
+        });
+      }
+    }
+
+    return { assistantMessageId };
   },
 });

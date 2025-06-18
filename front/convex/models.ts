@@ -83,7 +83,7 @@ export const update = internalMutation({
         .withIndex('by_slug', (q) => q.eq('slug', slug))
         .first();
 
-      let trimmedDescription: string;
+      let trimmedDescription = '';
 
       // trim description to first sentence
       if (description.length > 0) {
@@ -93,10 +93,10 @@ export const update = internalMutation({
         } else {
           trimmedDescription = description;
         }
-      }
 
-      // replace [text](url) with just text
-      trimmedDescription = trimmedDescription.replace(markdownLinkRegex, '$1').trim();
+        // replace [text](url) with just text
+        trimmedDescription = trimmedDescription.replace(markdownLinkRegex, '$1').trim();
+      }
 
       if (model != null) {
         await ctx.db.patch(model._id, {

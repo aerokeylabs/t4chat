@@ -5,10 +5,17 @@ export type ModelParams = {
   reasoningEffort: string;
 };
 
-export type Part = {
-  text: string;
+export type TextPart = {
   type: 'text';
+  text: string;
 };
+
+export type AttachmentPart = {
+  type: 'attachment';
+  id: Id<'attachments'>;
+};
+
+export type Part = TextPart | AttachmentPart;
 
 export type ProviderMetadata = {
   google: Google;

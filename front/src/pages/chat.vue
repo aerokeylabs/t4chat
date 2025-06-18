@@ -10,7 +10,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { apiPostSse, cancelMessage } from '@/lib/api';
 import { Routes, type AnnotationResponse, type CreateMessageRequest } from '@/lib/types';
-import { useEventListener, useLocalStorage, useResizeObserver } from '@vueuse/core';
+import { useEventListener, useLocalStorage, useResizeObserver, type ArgumentsType } from '@vueuse/core';
 import { ChevronDownIcon } from 'lucide-vue-next';
 import { SSE, type SSEvent } from 'sse.js';
 import { computed, ref, useTemplateRef } from 'vue';
@@ -24,6 +24,8 @@ const isInThread = computed(() => threadId.value != null);
 
 const createThreadMutation = useMutation(api.threads.create);
 const createMessageMutation = useMutation(api.threads.createMessage);
+const generateUploadUrlMutation = useMutation(api.attachments.generateUploadUrl);
+const completeUploadMutation = useMutation(api.attachments.completeUpload);
 
 const streamingMessage = useStreamingMessage();
 
@@ -31,7 +33,9 @@ const selected = useSelectedModel();
 
 let eventSource: SSE | null = null;
 
-async function onSend(message: string) {
+type MessagePart = ArgumentsType<typeof createMessageMutation>[0]['parts'][number];
+
+async function onSend(message: string, files?: File[]) {
   if (selected.model == null) {
     console.warn('No model selected, cannot send message');
     toast.error('Please select a model before sending a message');
@@ -62,15 +66,66 @@ async function onSend(message: string) {
   }
 
   try {
-    // Set waiting for first chunk to true
+    const uploadedFiles = [];
+
+    for (const file of files ?? []) {
+      console.info('Uploading file:', file.name);
+
+      const { id, uploadUrl } = await generateUploadUrlMutation({
+        name: file.name,
+        mimeType: file.type,
+        size: file.size,
+      });
+
+      if (uploadUrl == null) {
+        console.error('Failed to generate upload URL for file:', file.name);
+        toast.error(`Failed to upload file: ${file.name}`);
+        return;
+      }
+
+      console.debug('Generated upload URL:', uploadUrl);
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file,
+      });
+
+      if (!response.ok) {
+        console.error('Failed to upload file:', file.name, response.statusText);
+        toast.error(`Failed to upload file: ${file.name}`);
+        return;
+      }
+
+      const { storageId } = await response.json();
+
+      const attachment = await completeUploadMutation({ id, storageId });
+
+      if (attachment == null) {
+        console.error('Failed to complete upload for file:', file.name, storageId);
+        toast.error(`Failed to complete upload for file: ${file.name}`);
+        return;
+      }
+
+      uploadedFiles.push(attachment);
+    }
+
     streamingMessage.waitingForFirstChunk = true;
+
+    const parts: MessagePart[] = [{ type: 'text', text: message }];
+
+    if (uploadedFiles.length > 0) {
+      parts.push(...uploadedFiles.map((file) => ({ type: 'attachment' as const, id: file._id })));
+    }
 
     if (isInThread.value) {
       console.info('send message to thread', threadId.value, 'with content', message);
       const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
       const result = await createMessageMutation({
         threadId: threadId.value as Id<'threads'>,
-        messageParts: [{ type: 'text', text: message }],
+        parts,
         model: modelSlug,
         modelParams,
       });
@@ -96,7 +151,7 @@ async function onSend(message: string) {
       console.debug('create new thread with content', message);
 
       const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
-      const thread = await createThreadMutation({ model: modelSlug, modelParams, message });
+      const thread = await createThreadMutation({ model: modelSlug, modelParams, parts });
 
       console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
 

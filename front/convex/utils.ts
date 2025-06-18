@@ -1,5 +1,5 @@
 import { GenericQueryCtx } from 'convex/server';
-import { ConvexError, v } from 'convex/values';
+import { ConvexError } from 'convex/values';
 
 export async function getIdentity(ctx: GenericQueryCtx<any>) {
   const identity = await ctx.auth.getUserIdentity();
@@ -24,22 +24,3 @@ export function validateKey(key: string) {
     throw new ConvexError('invalid API key');
   }
 }
-
-export const modelParamsValidator = v.object({
-  includeSearch: v.boolean(),
-  reasoningEffort: v.string(),
-});
-
-export const messagePartValidator = v.union(
-  v.object({
-    type: v.literal('text'),
-    text: v.string(),
-  }),
-  v.object({
-    type: v.literal('file'),
-    data: v.string(), // base64 encoded file data
-    filename: v.string(),
-    mimeType: v.string(),
-    size: v.number(),
-  }),
-);

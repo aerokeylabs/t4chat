@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import Prose from '@/components/Prose.vue';
+import MessagePartAttachment from '@/components/messages/MessagePartAttachment.vue';
+import MessagePartText from '@/components/messages/MessagePartText.vue';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { UserMessage } from '@/lib/types/convex';
@@ -10,8 +11,15 @@ const props = defineProps<{
   message: UserMessage;
 }>();
 
+// todo: maybe move to function
+// todo: maybe copy attachment url
 function copy() {
-  copyToClipboard(props.message.parts.map((part) => part.text).join('\n'));
+  copyToClipboard(
+    props.message.parts
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n'),
+  );
 }
 </script>
 
@@ -19,8 +27,8 @@ function copy() {
   <div class="user-message">
     <div class="message-content">
       <template v-for="part in message.parts">
-        <Prose v-if="part.type === 'text'" :source="part.text" />
-        <div v-else>{{ { part } }}</div>
+        <MessagePartText v-if="part.type === 'text'" :part />
+        <MessagePartAttachment v-else-if="part.type === 'attachment'" :part />
       </template>
     </div>
 

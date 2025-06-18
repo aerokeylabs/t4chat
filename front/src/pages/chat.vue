@@ -288,7 +288,7 @@ useEventListener(messagesContainer, 'scroll', () => checkForScroll(false));
   <SidebarProvider v-model:open="sidebarOpen">
     <AppSidebar :open="sidebarOpen" />
 
-    <SidebarInset>
+    <SidebarInset class="inset-wrapper" :class="{ 'sidebar-closed': !sidebarOpen }">
       <main class="chat">
         <div ref="messages-container" class="messages custom-scrollbar" :style="chatboxHeightStyle">
           <RouterView />
@@ -314,6 +314,13 @@ useEventListener(messagesContainer, 'scroll', () => checkForScroll(false));
 </template>
 
 <style>
+.inset-wrapper {
+  transition: margin 0.2s ease-in-out;
+  &.sidebar-closed {
+    margin: 0;
+  }
+}
+
 .chat {
   position: relative;
   display: flex;

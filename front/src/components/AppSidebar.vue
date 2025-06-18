@@ -178,7 +178,7 @@ const isOnNewPage = computed(() => {
   </Teleport>
 
   <Teleport to="body">
-    <div class="top-right-controls">
+    <div class="top-right-controls" :class="{ 'sidebar-closed': !open }">
       <Popover>
         <PopoverTrigger>
           <Tooltip>
@@ -341,12 +341,62 @@ const isOnNewPage = computed(() => {
 
 .top-right-controls {
   position: fixed;
-  z-index: 1000;
-  top: calc(var(--spacing) * 2);
-  right: calc(var(--spacing) * 2);
+  z-index: 10;
   display: flex;
   align-items: center;
   gap: var(--spacing);
+
+  background-color: var(--sidebar);
+
+  --s: calc(var(--spacing) * 2);
+  --ns: calc(var(--spacing) * -2);
+  --shift: 2rem;
+  --nshift: calc(var(--shift) * -1);
+
+  padding-left: var(--spacing);
+  padding-bottom: var(--spacing);
+
+  top: calc(var(--spacing) * 2);
+  right: calc(var(--spacing) * 2);
+  border-bottom-left-radius: var(--radius-lg);
+
+  transition: background-color 0.2s ease-in-out;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    background-color: var(--background);
+    border-top-right-radius: var(--radius-lg);
+    box-shadow: 0.5rem -0.5rem 0 0 var(--sidebar);
+
+    transform: translateY(var(--shift)) translateX(var(--nshift));
+    transition: transform 0.2s ease-in-out;
+  }
+
+  &::before {
+    top: var(--nshift);
+    left: calc(var(--ns) * 2 + var(--shift));
+    width: calc(var(--s) * 2);
+    height: calc(var(--s) * 2);
+  }
+
+  &::after {
+    bottom: calc(var(--ns) * 4 + var(--shift));
+    right: var(--nshift);
+    width: calc(var(--s) * 4);
+    height: calc(var(--s) * 4);
+  }
+
+  &.sidebar-closed {
+    background-color: transparent;
+
+    &::before,
+    &::after {
+      transform: translateY(0) translateX(0);
+    }
+  }
 }
 
 .sidebar-button {

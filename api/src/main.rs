@@ -3,6 +3,7 @@ use api::config::Config;
 use api::logger;
 use api::prelude::*;
 use api::setup::Application;
+#[cfg(debug_assertions)]
 use api::types::export_types;
 
 #[tokio::main]

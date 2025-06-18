@@ -5,7 +5,7 @@ import Prose from '@/components/Prose.vue';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useReactiveQuery } from '@/composables/convex';
+import { useMutation, useReactiveQuery } from '@/composables/convex';
 import { useRetryEventBus } from '@/composables/retryEventBus';
 import { api } from '@/convex/_generated/api';
 import type { AssistantMessage } from '@/lib/types/convex';
@@ -13,6 +13,7 @@ import { copyToClipboard, displayModelName } from '@/lib/utils';
 import { ChevronDownIcon, ClockIcon, CopyIcon, CpuIcon, RefreshCcwIcon, SplitIcon, ZapIcon } from 'lucide-vue-next';
 import moment from 'moment';
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 
 const props = defineProps<{
   message: AssistantMessage;
@@ -75,6 +76,19 @@ const eventBus = useRetryEventBus();
 function retryMessage() {
   eventBus.emit(props.message._id);
 }
+
+const forkThreadMutation = useMutation(api.threads.forkThread);
+const router = useRouter();
+
+async function fork() {
+  const result = await forkThreadMutation({ messageId: props.message._id });
+
+  if (result?.threadId != null) {
+    router.push(`/chat/${result.threadId}`);
+  } else {
+    console.error('Failed to fork thread');
+  }
+}
 </script>
 
 <template>
@@ -128,7 +142,7 @@ function retryMessage() {
 
       <Tooltip>
         <TooltipTrigger>
-          <Button variant="ghost" size="icon-sm">
+          <Button variant="ghost" size="icon-sm" @click="fork">
             <SplitIcon />
           </Button>
         </TooltipTrigger>

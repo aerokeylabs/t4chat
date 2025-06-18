@@ -75,7 +75,7 @@ export default defineSchema({
   }).index('by_user', ['userId']),
 
   threads: defineTable({
-    branchParent: v.null(),
+    branchParent: v.optional(v.id('threads')),
     createdAt: v.float64(),
     generationStatus: v.string(),
     lastMessageAt: v.float64(),

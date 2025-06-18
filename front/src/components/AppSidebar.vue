@@ -19,7 +19,16 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { api } from '@/convex/_generated/api';
 import { SignInButton, useUser } from '@clerk/vue';
 import { debouncedRef } from '@vueuse/core';
-import { PinIcon, PinOffIcon, PlusIcon, SearchIcon, Settings2Icon, SunIcon, TrashIcon } from 'lucide-vue-next';
+import {
+  PinIcon,
+  PinOffIcon,
+  PlusIcon,
+  SearchIcon,
+  Settings2Icon,
+  SplitIcon,
+  SunIcon,
+  TrashIcon,
+} from 'lucide-vue-next';
 import moment from 'moment';
 import { computed, ref } from 'vue';
 import { toast } from 'vue-sonner';
@@ -275,7 +284,14 @@ const isOnNewPage = computed(() => {
           <RouterLink :to="`/chat/${thread._id}`" custom v-slot="{ navigate }">
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" class="sidebar-button w-full justify-start px-2" @click="navigate">
+                <Button
+                  variant="ghost"
+                  class="sidebar-button w-full justify-start px-2"
+                  :class="{ branch: thread.branchParent != null }"
+                  @click="navigate"
+                >
+                  <SplitIcon v-if="thread.branchParent != null" class="size-4" />
+
                   <div class="thread-title" @dblclick.stop="startEditing(thread, $event)">
                     <template v-if="editingThreadId === thread._id">
                       <input
@@ -299,8 +315,8 @@ const isOnNewPage = computed(() => {
                       class="pin-button"
                       @click="(e) => togglePinThread(thread, e)"
                     >
-                      <PinIcon v-if="!thread.pinned" class="h-4 w-4" />
-                      <PinOffIcon v-else class="h-4 w-4" />
+                      <PinIcon v-if="!thread.pinned" class="size-4" />
+                      <PinOffIcon v-else class="size-4" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -308,7 +324,7 @@ const isOnNewPage = computed(() => {
                       class="delete-button"
                       @click="(e) => deleteThread(thread._id, e)"
                     >
-                      <TrashIcon class="h-4 w-4" />
+                      <TrashIcon class="size-4" />
                     </Button>
                   </div>
                 </Button>
@@ -468,7 +484,7 @@ const isOnNewPage = computed(() => {
 
   .action-buttons {
     position: absolute;
-    right: 8px;
+    right: 2px;
     display: flex;
     gap: 0px;
     transform: translateX(100%);
@@ -478,13 +494,19 @@ const isOnNewPage = computed(() => {
     background-color: transparent;
   }
 
+  &.branch:hover {
+    .thread-title {
+      max-width: calc(100% - 80px);
+    }
+  }
+
   &:hover {
     .action-buttons {
       transform: translateX(0);
     }
 
     .thread-title {
-      max-width: calc(100% - 70px);
+      max-width: calc(100% - 62px);
     }
   }
 

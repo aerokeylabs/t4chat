@@ -1,7 +1,8 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { getIdentity, validateKey } from './utils';
 import { messagePartValidator, modelParamsValidator } from './schema';
+import { Id } from './_generated/dataModel';
 
 export const getById = query({
   args: { id: v.id('threads') },
@@ -82,7 +83,7 @@ export const create = mutation({
       visibility: 'hidden',
       pinned: false,
       model,
-      branchParent: null,
+      branchParent: undefined,
       userId,
     });
 
@@ -316,5 +317,76 @@ export const getMessageCounts = query({
     });
 
     return counts;
+  },
+});
+
+export const forkThread = mutation({
+  args: {
+    messageId: v.id('messages'),
+  },
+  async handler(ctx, { messageId }) {
+    const identity = await getIdentity(ctx);
+    const userId = identity.tokenIdentifier;
+
+    const message = await ctx.db.get(messageId);
+    if (message?.userId !== userId) {
+      throw new ConvexError('Message not found');
+    }
+
+    const threadId = message.threadId as Id<'threads'>;
+    const thread = await ctx.db.get(threadId);
+
+    if (thread?.userId !== userId) {
+      throw new ConvexError('Thread not found');
+    }
+
+    // Create a new thread with the same properties as the original
+    const newThreadId = await ctx.db.insert('threads', {
+      generationStatus: 'pending',
+      updatedAt: Date.now(),
+      createdAt: Date.now(),
+      lastMessageAt: Date.now(),
+      userSetTitle: thread.userSetTitle,
+      title: thread.title,
+      visibility: thread.visibility,
+      pinned: false,
+      model: thread.model,
+      branchParent: thread._id,
+      userId: thread.userId,
+    });
+
+    // insert messages up to the fork point
+    const messages = await ctx.db
+      .query('messages')
+      .withIndex('by_thread', (q) => q.eq('threadId', threadId))
+      .order('asc')
+      .collect();
+    const forkIndex = messages.findIndex((msg) => msg._id === messageId);
+    const messagesToInsert = messages.slice(0, forkIndex + 1);
+
+    for (const msg of messagesToInsert) {
+      await ctx.db.insert('messages', {
+        role: msg.role,
+        parts: msg.parts,
+        attachmentIds: msg.attachmentIds,
+        attachments: msg.attachments,
+        userId: msg.userId,
+        model: msg.model,
+        modelParams: msg.modelParams,
+        providerMetadata: msg.providerMetadata,
+        resumableStreamId: msg.resumableStreamId,
+        status: msg.status,
+        reasoning: msg.reasoning,
+        annotations: msg.annotations,
+        promptTokenCount: msg.promptTokenCount,
+        tokenCount: msg.tokenCount,
+        durationMs: msg.durationMs,
+        tokensPerSecond: msg.tokensPerSecond,
+        timeToFirstTokenMs: msg.timeToFirstTokenMs,
+        threadId: newThreadId,
+      });
+    }
+
+    return { threadId: newThreadId };
   },
 });

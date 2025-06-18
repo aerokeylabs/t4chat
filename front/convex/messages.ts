@@ -267,7 +267,7 @@ export const retryMessage = mutation({
 
     const message = await ctx.db.get(messageId);
     if (message?.userId !== userId) {
-      throw new ConvexError('Message not found or unauthorized');
+      throw new ConvexError('Message not found');
     }
 
     const threadId = message.threadId;

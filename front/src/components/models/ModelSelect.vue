@@ -41,36 +41,40 @@ const displayedModels = computed(() => {
 
 <template>
   <div class="model-select">
-    <IconInput v-model="query" type="text" placeholder="Search all OpenRouter models...">
-      <SearchIcon />
-    </IconInput>
-
     <div class="model-select-inner">
-      <Button
-        v-if="!hasQuery && selected.model != null"
-        variant="ghost"
-        size="xl"
-        class="bg-secondary w-full justify-between"
-      >
-        <ModelListItem :model="selected.model" />
-      </Button>
+      <div class="model-list custom-scrollbar">
+          <Button
+            v-if="!hasQuery && selected.model != null"
+            variant="ghost"
+            size="xl"
+            class="bg-secondary w-full justify-between"
+          >
+            <ModelListItem :model="selected.model" />
+          </Button>
 
-      <template v-for="model in displayedModels" :key="model.id">
-        <Button
-          variant="ghost"
-          size="xl"
-          class="w-full justify-between"
-          :class="{ 'bg-secondary': selected.slug === model.slug }"
-          @click="selectModel(model.slug)"
-        >
-          <ModelListItem :model />
-        </Button>
-      </template>
+          <template v-for="model in displayedModels" :key="model.id">
+            <Button
+              variant="ghost"
+              size="xl"
+              class="w-full justify-between"
+              :class="{ 'bg-secondary': selected.slug === model.slug }"
+              @click="selectModel(model.slug)"
+            >
+              <ModelListItem :model />
+            </Button>
+          </template>
 
-      <div v-if="displayedModels.length === 0" class="flex w-full">
-        <span class="text-muted-foreground w-full p-4 text-center">
-          {{ hasQuery ? 'No models found' : 'No models available' }}
-        </span>
+          <div v-if="displayedModels.length === 0" class="flex w-full">
+            <span class="text-muted-foreground w-full p-4 text-center">
+              {{ hasQuery ? 'No models found' : 'No models available' }}
+            </span>
+          </div>
+      </div>
+      
+      <div class="search-container">
+        <IconInput v-model="query" type="text" placeholder="Search all OpenRouter models...">
+          <SearchIcon />
+        </IconInput>
       </div>
     </div>
   </div>
@@ -78,21 +82,30 @@ const displayedModels = computed(() => {
 
 <style>
 .model-select {
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--spacing) * 2);
-
-  height: 570px;
-  /* min-height: 300px; */
-  width: 480px;
+  width: 100%;
+  max-width: 480px;
 
   .model-select-inner {
-    min-height: 0;
-    max-height: 500px;
-    overflow-y: auto;
-
     display: flex;
     flex-direction: column;
+    gap: calc(var(--spacing) * 2);
+    max-height: 70vh;
+    overflow: hidden;
+  }
+
+  .model-list {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .search-container {
+    padding: 0 calc(var(--spacing) * 2) calc(var(--spacing) * 2);
+    background: var(--background);
+    position: sticky;
+    bottom: 0;
+    border-top: 1px solid var(--border);
+    padding-top: calc(var(--spacing) * 2);
   }
 }
 </style>

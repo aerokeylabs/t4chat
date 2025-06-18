@@ -337,11 +337,28 @@ pub struct ChatUsage {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "type")]
+pub enum FileCitationContent {
+  Text { text: String },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct FileCitation {
+  pub hash: String,
+  pub name: String,
+  pub content: FileCitationContent,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "snake_case")]
 pub enum Annotation {
   #[serde(rename = "url_citation")]
   UrlCitation { url_citation: UrlCitation },
+  #[serde(rename = "file")]
+  FileCitation { file: FileCitation },
 }
 
 #[derive(Debug, Deserialize)]

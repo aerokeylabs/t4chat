@@ -108,10 +108,10 @@ function retryMessage() {
       </Collapsible>
     </div>
 
-    <template v-for="part in message.parts">
+    <div class="parts" v-for="part in message.parts">
       <MessagePartText v-if="part.type === 'text'" :part />
       <MessagePartAttachment v-else-if="part.type === 'attachment'" :part />
-    </template>
+    </div>
 
     <div v-if="message.status === 'complete'" class="annotations" :class="{ 'has-annotations': hasAnnotations }">
       <div class="annotation-pills">

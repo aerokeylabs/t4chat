@@ -19,7 +19,7 @@ use crate::convex_serde;
 use crate::openrouter::completions::{OpenrouterEvent, stream_completions, stream_openrouter_chat};
 use crate::openrouter::title::generate_title_from_content;
 use crate::openrouter::types::{
-  Annotation, ChatDelta, ContentPart, File, ImageUrl, MessageRequest, ReasoningEffort, Role,
+  Annotation, ChatDelta, ContentPart, File, FileCitationContent, ImageUrl, MessageRequest, ReasoningEffort, Role,
 };
 use crate::openrouter::{OpenrouterClient, OpenrouterError};
 use crate::prelude::*;
@@ -396,6 +396,13 @@ fn openrouter_annotation_to_convex(annotation: Annotation) -> ConvexAnnotation {
       title: url_citation.title,
       url: url_citation.url,
       content: url_citation.content,
+    },
+    Annotation::FileCitation { file } => ConvexAnnotation {
+      title: file.name.clone(),
+      url: file.name,
+      content: match file.content {
+        FileCitationContent::Text { text } => text,
+      },
     },
   }
 }

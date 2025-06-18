@@ -11,6 +11,7 @@ export type CreateMessageRequest = {
   responseMessageId: string;
   model: string;
   modelParams: ModelParamsRequest | null;
+  reasoningEffort: ReasoningEffortRequest | null;
 };
 
 export type ModelParamsRequest = { reasoningEffort: string; includeSearch: boolean };
@@ -23,6 +24,8 @@ export type ModelResponse = {
   image: boolean;
   reasoning: boolean;
 };
+
+export type ReasoningEffortRequest = 'low' | 'medium' | 'high';
 
 export type TestType = { awa: string; wawa: number };
 

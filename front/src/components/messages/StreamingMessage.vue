@@ -12,7 +12,7 @@ const error = computed(() => {
 });
 
 const reasoning = computed(() => {
-  const reasoning = streamingMessage.reasoning;
+  const reasoning = streamingMessage.reasoning.value;
 
   if (reasoning == null || reasoning === '') return null;
 
@@ -30,10 +30,10 @@ const reasoning = computed(() => {
           <span class="text-muted-foreground">Reasoning</span>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <Prose :source="streamingMessage.reasoning" />
+          <Prose :source="reasoning" />
         </CollapsibleContent>
       </Collapsible>
-      <Prose :source="streamingMessage.response" />
+      <Prose :source="streamingMessage.response.value" />
     </template>
   </div>
 </template>

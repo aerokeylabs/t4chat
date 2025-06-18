@@ -24,9 +24,9 @@ const streamingMessage = useStreamingMessage();
 
 // show streaming message if it is not completed or if the last message is still pending
 const showStreamingMessage = computed(() => {
-  // const lastMessage = messages.value.length === 0 ? null : messages.value[messages.value.length - 1];
-  // if (!streamingMessage.completed) return true;
-  // if (lastMessage?.role === 'assistant' && lastMessage.status === 'complete') return false;
+  const lastMessage = messages.value.length === 0 ? null : messages.value[messages.value.length - 1];
+  if (!streamingMessage.completed) return true;
+  if (lastMessage?.role === 'assistant' && lastMessage.status === 'complete') return false;
   return true;
 });
 </script>

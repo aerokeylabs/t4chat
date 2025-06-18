@@ -17,7 +17,7 @@ use crate::convex::{ConvexClient, ConvexError, messages, threads};
 use crate::convex_serde;
 use crate::openrouter::completions::{OpenrouterEvent, stream_completions, stream_openrouter_chat};
 use crate::openrouter::title::generate_title_from_content;
-use crate::openrouter::types::{Annotation, ChatDelta, Message, Role};
+use crate::openrouter::types::{Annotation, ChatDelta, Message, ReasoningEffort, Role};
 use crate::openrouter::{OpenrouterClient, OpenrouterError};
 use crate::prelude::*;
 
@@ -30,11 +30,30 @@ pub struct ModelParamsRequest {
 
 #[derive(Debug, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
+pub enum ReasoningEffortRequest {
+  Low,
+  Medium,
+  High,
+}
+
+impl From<ReasoningEffortRequest> for ReasoningEffort {
+  fn from(val: ReasoningEffortRequest) -> Self {
+    match val {
+      ReasoningEffortRequest::Low => ReasoningEffort::Low,
+      ReasoningEffortRequest::Medium => ReasoningEffort::Medium,
+      ReasoningEffortRequest::High => ReasoningEffort::High,
+    }
+  }
+}
+
+#[derive(Debug, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
 pub struct CreateMessageRequest {
   pub thread_id: String,
   pub response_message_id: String,
   pub model: String,
   pub model_params: Option<ModelParamsRequest>,
+  pub reasoning_effort: Option<ReasoningEffortRequest>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -75,6 +94,7 @@ struct ChatContext {
   custom_key: Option<String>,
   set_title: bool,
   messages: Vec<Message>,
+  reasoning_effort: Option<ReasoningEffort>,
 }
 
 fn message_to_part(message: ConvexMessage) -> Message {
@@ -175,6 +195,8 @@ pub async fn create_message(
   let active_threads = state.active_threads.clone();
   let thread_id = thread.id.clone();
 
+  let reasoning_effort = payload.reasoning_effort.map(|effort| effort.into());
+
   let context = ChatContext {
     model: model.to_string(),
     message,
@@ -183,6 +205,7 @@ pub async fn create_message(
     custom_key,
     set_title,
     messages,
+    reasoning_effort,
   };
 
   tokio::spawn(async move {
@@ -292,6 +315,7 @@ async fn stream_chat(
     context.messages,
     context.custom_key.clone(),
     None,
+    context.reasoning_effort,
   )
   .await?;
 

@@ -4,3 +4,5 @@
 /front/node_modules
 
 .env*
+
+/test_data

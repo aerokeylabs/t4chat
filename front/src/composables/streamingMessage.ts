@@ -1,5 +1,6 @@
+import { useInterpolatingRef } from '@/composables/useInterpolatingRef';
 import { acceptHMRUpdate, defineStore } from 'pinia';
-import { computed, customRef, ref } from 'vue';
+import { computed, ref } from 'vue';
 
 // const message = ref('');
 // const completed = ref(true);
@@ -271,102 +272,6 @@ import { computed, customRef, ref } from 'vue';
 //   };
 // }
 
-const BASE_INTERPOLATION_SPEED = 2; // Base ms between characters
-const MIN_INTERPOLATION_SPEED = 0.5; // Minimum ms between characters
-const MAX_PENDING_CHUNKS = 10; // Maximum pending chunks before direct append
-
-function useInterpolatingRef(initialValue: string) {
-  return customRef((track, trigger) => {
-    let value = initialValue;
-    let pendingChunks: string[] = [];
-    let isInterpolating = false;
-    let interpolationInterval: number | null = null;
-    let speed = BASE_INTERPOLATION_SPEED;
-
-    function startInterpolation() {
-      if (isInterpolating || pendingChunks.length === 0) return;
-
-      isInterpolating = true;
-
-      interpolationInterval = window.setInterval(() => {
-        if (pendingChunks.length === 0) {
-          isInterpolating = false;
-          clearInterval(interpolationInterval as number);
-          interpolationInterval = null;
-          return;
-        }
-
-        let currentChunk = pendingChunks[0];
-
-        // Adjust speed based on number of pending chunks
-        speed = Math.max(MIN_INTERPOLATION_SPEED, BASE_INTERPOLATION_SPEED - pendingChunks.length * 0.2);
-
-        // Process multiple characters per tick when we have many pending chunks
-        const charsToProcess = Math.ceil(BASE_INTERPOLATION_SPEED / speed);
-
-        // Add the entire chunk at once if it's small enough
-        if (currentChunk.length <= charsToProcess) {
-          value += currentChunk;
-          trigger();
-          pendingChunks.shift();
-        } else {
-          // Otherwise process a portion of the chunk
-          const portion = currentChunk.slice(0, charsToProcess);
-          value += portion;
-          trigger();
-          pendingChunks[0] = currentChunk.slice(charsToProcess);
-        }
-      }, speed);
-    }
-
-    return {
-      get() {
-        track();
-        return value;
-      },
-      set(newValue: string) {
-        // if the new value is empty, reset everything
-        if (newValue.length === 0) {
-          value = '';
-          pendingChunks = [];
-          isInterpolating = false;
-
-          if (interpolationInterval !== null) {
-            clearInterval(interpolationInterval);
-            interpolationInterval = null;
-          }
-
-          trigger();
-
-          return;
-        }
-
-        // If we have too many pending chunks, append directly and clear the queue
-        if (pendingChunks.length >= MAX_PENDING_CHUNKS) {
-          if (interpolationInterval !== null) {
-            clearInterval(interpolationInterval);
-            interpolationInterval = null;
-          }
-
-          // Append all pending chunks directly
-          value += pendingChunks.join('') + newValue;
-          trigger();
-          pendingChunks = [];
-          isInterpolating = false;
-        } else {
-          // Add the new chunk to the pending queue
-          pendingChunks.push(newValue);
-
-          // Start interpolation if not already running
-          if (!isInterpolating) {
-            startInterpolation();
-          }
-        }
-      },
-    };
-  });
-}
-
 export const useStreamingMessage = defineStore('streamingMessage', () => {
   /** if stream is completed and no more data will be received */
   const completed = ref(true);
@@ -374,6 +279,9 @@ export const useStreamingMessage = defineStore('streamingMessage', () => {
   const cancelled = ref(false);
   /** if stream failed */
   const failed = ref(false);
+
+  /** if waiting for first chunk to be received */
+  const waitingForFirstChunk = ref(false);
 
   /** id of thread containing message being streamed */
   const threadId = ref<string | null>(null);
@@ -388,14 +296,15 @@ export const useStreamingMessage = defineStore('streamingMessage', () => {
 
   function addChunk(chunk: string, isReasoning: boolean) {
     if (chunk.length === 0) return;
+    waitingForFirstChunk.value = false;
 
     // replace \\n with actual newline
     const processedChunk = chunk.replace(/\\n/g, '\n');
 
     if (isReasoning) {
-      reasoning.value += processedChunk;
+      reasoning.add(processedChunk);
     } else {
-      response.value += processedChunk;
+      response.add(processedChunk);
     }
   }
 
@@ -403,8 +312,10 @@ export const useStreamingMessage = defineStore('streamingMessage', () => {
   const addReasoningChunk = (chunk: string) => addChunk(chunk, true);
 
   function clear() {
-    reasoning.value = '';
-    response.value = '';
+    reasoning.clear();
+    response.clear();
+
+    waitingForFirstChunk.value = true;
 
     threadId.value = null;
   }
@@ -441,6 +352,8 @@ export const useStreamingMessage = defineStore('streamingMessage', () => {
     completed,
     cancelled,
     failed,
+
+    waitingForFirstChunk,
 
     isStreaming,
 

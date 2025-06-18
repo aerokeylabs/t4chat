@@ -31,7 +31,7 @@ pub async fn generate_title_from_content(
     content: "What is the title of this conversation?".to_string(),
   });
 
-  let completions = get_completions(openrouter, TITLE_GENERATION_MODEL, messages, custom_key, Some(50)).await?;
+  let completions = get_completions(openrouter, TITLE_GENERATION_MODEL, messages, custom_key, Some(50), None).await?;
 
   let title = completions
     .choices

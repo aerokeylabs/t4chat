@@ -160,6 +160,7 @@ pub struct TopProvider {
 // region: completions
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum Role {
   #[serde(rename = "user")]
   User,
@@ -174,15 +175,37 @@ pub enum Role {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct Message {
   pub role: Role,
   pub content: String,
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReasoningEffort {
+  #[serde(rename = "low")]
+  Low,
+  #[serde(rename = "medium")]
+  Medium,
+  #[serde(rename = "high")]
+  High,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ReasoningRequest {
+  pub effort: ReasoningEffort
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct CompletionRequest {
   pub model: String,
   pub messages: Vec<Message>,
+
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub reasoning: Option<ReasoningRequest>,
 
   #[serde(skip_serializing_if = "Option::is_none")]
   pub max_tokens: Option<u32>,
@@ -191,11 +214,13 @@ pub struct CompletionRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct CompletionChoice {
   pub message: Message,
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct CompletionResponse {
   pub id: String,
   pub choices: Vec<CompletionChoice>,
@@ -246,12 +271,14 @@ pub struct ChatUsage {
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
 pub enum Annotation {
   #[serde(rename = "url_citation")]
   UrlCitation { url_citation: UrlCitation },
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct UrlCitation {
   pub title: String,
   pub url: String,

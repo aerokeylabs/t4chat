@@ -1,14 +1,34 @@
 <script setup lang="ts">
 import ModelSelect from '@/components/models/ModelSelect.vue';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useChatbox } from '@/composables/chatbox';
-import { useSelectedModel } from '@/composables/selectedModel';
+import { useSelectedModel, type ReasoningEffort } from '@/composables/selectedModel';
 import { useStreamingMessage } from '@/composables/streamingMessage';
 import { displayModelName } from '@/lib/utils';
 import { useEventListener } from '@vueuse/core';
-import { ChevronDownIcon, GlobeIcon, PaperclipIcon, SendIcon, StopCircleIcon, XIcon } from 'lucide-vue-next';
+import {
+  ChevronDownIcon,
+  GlobeIcon,
+  PaperclipIcon,
+  SendIcon,
+  Settings2Icon,
+  SignalHighIcon,
+  SignalLowIcon,
+  SignalMediumIcon,
+  SignalZeroIcon,
+  StopCircleIcon,
+  XIcon,
+} from 'lucide-vue-next';
 import { computed, nextTick, ref, useTemplateRef } from 'vue';
 
 const selected = useSelectedModel();
@@ -22,7 +42,7 @@ const textarea = useTemplateRef('textarea');
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput');
 
 const { value: message } = useChatbox();
-const { isStreaming } = useStreamingMessage();
+const streamingMessage = useStreamingMessage();
 const selectedFiles = ref<File[]>([]);
 
 const messageValid = computed(() => {
@@ -69,7 +89,7 @@ async function prepareFilesForSend(): Promise<Array<{ name: string; type: string
 async function send() {
   if (message.value.trim() === '' && selectedFiles.value.length === 0) return;
 
-  if (isStreaming.value) {
+  if (streamingMessage.isStreaming) {
     cancel();
   }
 
@@ -139,6 +159,10 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / 1048576).toFixed(1) + ' MB';
 }
+
+function setReasoningEffort(effort: ReasoningEffort) {
+  selected.reasoningEffort = effort;
+}
 </script>
 
 <template>
@@ -195,6 +219,35 @@ function formatFileSize(bytes: number): string {
           <span class="ml-1">Search</span>
         </Button>
 
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            <Button variant="outline" size="icon-sm">
+              <Settings2Icon class="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Reasoning Effort</DropdownMenuLabel>
+              <DropdownMenuItem @click="setReasoningEffort('high')" :active="selected.reasoningEffort === 'high'">
+                <SignalHighIcon class="stroke-3 size-5" />
+                <span>High</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="setReasoningEffort('medium')" :active="selected.reasoningEffort === 'medium'">
+                <SignalMediumIcon class="stroke-3 size-5" />
+                <span>Medium</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="setReasoningEffort('low')" :active="selected.reasoningEffort === 'low'">
+                <SignalLowIcon class="stroke-3 size-5" />
+                <span>Low</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem @click="setReasoningEffort(null)" :active="selected.reasoningEffort == null">
+                <SignalZeroIcon class="stroke-3 size-5" />
+                <span>None</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Button variant="outline" size="icon-sm" @click="handleFileSelect">
           <span class="sr-only">Add attachment</span>
           <PaperclipIcon class="size-4" />
@@ -202,7 +255,7 @@ function formatFileSize(bytes: number): string {
         </Button>
       </div>
 
-      <Button v-if="isStreaming" size="icon" variant="ghost" @click="cancel">
+      <Button v-if="streamingMessage.isStreaming" size="icon" variant="ghost" @click="cancel">
         <StopCircleIcon class="size-5" />
       </Button>
 

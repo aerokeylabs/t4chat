@@ -7,7 +7,9 @@ use reqwest_eventsource::{Error as EventSourceError, Event as EventSourceEvent, 
 use stream_cancel::{Trigger, Valved};
 use tokio::sync::Mutex;
 
-use crate::openrouter::types::{ChatCompletion, CompletionRequest, CompletionResponse, Message};
+use crate::openrouter::types::{
+  ChatCompletion, CompletionRequest, CompletionResponse, Message, ReasoningEffort, ReasoningRequest,
+};
 use crate::openrouter::{OpenrouterClient, OpenrouterError};
 use crate::prelude::*;
 
@@ -19,6 +21,7 @@ pub async fn get_completions(
   messages: Vec<Message>,
   custom_key: Option<String>,
   max_tokens: Option<u32>,
+  reasoning: Option<ReasoningEffort>,
 ) -> Result<CompletionResponse, OpenrouterError> {
   let client = client.lock().await;
   let builder = client.request_builder(Method::POST, COMPLETIONS_PATH, custom_key)?;
@@ -28,6 +31,7 @@ pub async fn get_completions(
     model: model.to_string(),
     messages,
     max_tokens,
+    reasoning: reasoning.map(|effort| ReasoningRequest { effort }),
     stream: false,
   };
   let response = builder.json(&request).send().await?;
@@ -45,6 +49,7 @@ pub async fn stream_completions(
   messages: Vec<Message>,
   custom_key: Option<String>,
   max_tokens: Option<u32>,
+  reasoning: Option<ReasoningEffort>,
 ) -> Result<EventSource, OpenrouterError> {
   let client = client.lock().await;
   let builder = client.request_builder(Method::POST, COMPLETIONS_PATH, custom_key)?;
@@ -54,6 +59,7 @@ pub async fn stream_completions(
     model: model.to_string(),
     messages,
     max_tokens,
+    reasoning: reasoning.map(|effort| ReasoningRequest { effort }),
     stream: true,
   };
 
@@ -77,6 +83,8 @@ pub async fn stream_openrouter_chat(
     for await value in source {
       match value {
         Ok(EventSourceEvent::Message(data)) => {
+          // info!("raw data: {}", data.data);
+
           if data.data == "[DONE]" || data.data.is_empty() {
             continue;
           }

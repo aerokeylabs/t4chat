@@ -27,8 +27,6 @@ const createMessageMutation = useMutation(api.threads.createMessage);
 
 const streamingMessage = useStreamingMessage();
 
-const isWaitingForFirstChunk = ref(false);
-
 const selected = useSelectedModel();
 
 let eventSource: SSE | null = null;
@@ -65,7 +63,7 @@ async function onSend(message: string) {
 
   try {
     // Set waiting for first chunk to true
-    isWaitingForFirstChunk.value = true;
+    streamingMessage.waitingForFirstChunk = true;
 
     if (isInThread.value) {
       console.info('send message to thread', threadId.value, 'with content', message);
@@ -90,6 +88,7 @@ async function onSend(message: string) {
         responseMessageId: result.assistantMessageId,
         model: modelId,
         modelParams,
+        reasoningEffort: selected.reasoningEffort,
       });
 
       activeThreadId = threadId.value;
@@ -109,6 +108,7 @@ async function onSend(message: string) {
         responseMessageId: thread.assistantMessageId,
         model: modelId,
         modelParams,
+        reasoningEffort: selected.reasoningEffort,
       });
 
       activeThreadId = thread.threadId;
@@ -293,7 +293,7 @@ useEventListener(messagesContainer, 'scroll', () => checkForScroll(false));
         <div ref="messages-container" class="messages custom-scrollbar" :style="chatboxHeightStyle">
           <RouterView />
 
-          <div v-if="isWaitingForFirstChunk" class="loading-indicator-container">
+          <div v-if="streamingMessage.waitingForFirstChunk" class="loading-indicator-container">
             <LoadingDots />
           </div>
 

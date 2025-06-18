@@ -159,7 +159,7 @@ pub struct TopProvider {
 
 // region: completions
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
   #[serde(rename = "user")]
@@ -174,9 +174,42 @@ pub enum Role {
   Tool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct Message {
+pub struct ImageUrl {
+  pub url: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct File {
+  pub filename: String,
+  /// base64 encoded file content
+  pub file_data: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[serde(tag = "type")]
+pub enum ContentPart {
+  #[serde(rename = "text")]
+  Text { text: String },
+  #[serde(rename = "image_url")]
+  Image { image_url: ImageUrl },
+  #[serde(rename = "file")]
+  File { file: File },
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct MessageRequest {
+  pub role: Role,
+  pub content: ContentPart,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct MessageResponse {
   pub role: Role,
   pub content: String,
 }
@@ -195,14 +228,14 @@ pub enum ReasoningEffort {
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ReasoningRequest {
-  pub effort: ReasoningEffort
+  pub effort: ReasoningEffort,
 }
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct CompletionRequest {
   pub model: String,
-  pub messages: Vec<Message>,
+  pub messages: Vec<MessageRequest>,
 
   #[serde(skip_serializing_if = "Option::is_none")]
   pub reasoning: Option<ReasoningRequest>,
@@ -216,7 +249,7 @@ pub struct CompletionRequest {
 #[derive(Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct CompletionChoice {
-  pub message: Message,
+  pub message: MessageResponse,
 }
 
 #[derive(Deserialize)]
@@ -247,9 +280,17 @@ pub struct ChatChoice {
 #[serde(untagged)]
 #[serde(rename_all = "snake_case")]
 pub enum ChatDelta {
-  Text { content: String, reasoning: Option<String>, annotations: Option<Vec<Annotation>> },
-  Finished { finish_reason: String },
-  Refusal { refusal: String },
+  Text {
+    content: String,
+    reasoning: Option<String>,
+    annotations: Option<Vec<Annotation>>,
+  },
+  Finished {
+    finish_reason: String,
+  },
+  Refusal {
+    refusal: String,
+  },
 }
 
 #[derive(Debug, Deserialize)]

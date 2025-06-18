@@ -8,7 +8,7 @@ use stream_cancel::{Trigger, Valved};
 use tokio::sync::Mutex;
 
 use crate::openrouter::types::{
-  ChatCompletion, CompletionRequest, CompletionResponse, Message, ReasoningEffort, ReasoningRequest,
+  ChatCompletion, CompletionRequest, CompletionResponse, MessageRequest, ReasoningEffort, ReasoningRequest,
 };
 use crate::openrouter::{OpenrouterClient, OpenrouterError};
 use crate::prelude::*;
@@ -18,7 +18,7 @@ const COMPLETIONS_PATH: &str = "chat/completions";
 pub async fn get_completions(
   client: Arc<Mutex<OpenrouterClient>>,
   model: &str,
-  messages: Vec<Message>,
+  messages: Vec<MessageRequest>,
   custom_key: Option<String>,
   max_tokens: Option<u32>,
   reasoning: Option<ReasoningEffort>,
@@ -46,7 +46,7 @@ pub async fn get_completions(
 pub async fn stream_completions(
   client: Arc<Mutex<OpenrouterClient>>,
   model: &str,
-  messages: Vec<Message>,
+  messages: Vec<MessageRequest>,
   custom_key: Option<String>,
   max_tokens: Option<u32>,
   reasoning: Option<ReasoningEffort>,

@@ -1,6 +1,3 @@
-pub mod messages;
-pub mod threads;
-
 use std::collections::BTreeMap;
 
 use anyhow::Context;
@@ -11,6 +8,10 @@ use serde::de::DeserializeOwned;
 use crate::config::ConvexConfig;
 use crate::convex_serde;
 use crate::prelude::*;
+
+pub mod attachments;
+pub mod messages;
+pub mod threads;
 
 #[derive(Clone)]
 pub struct ConvexClient {

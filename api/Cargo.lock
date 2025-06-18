@@ -112,6 +112,7 @@ dependencies = [
  "axum",
  "axum-extra",
  "axum-login",
+ "base64 0.22.1",
  "chrono",
  "colog",
  "convex",

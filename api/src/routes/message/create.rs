@@ -5,6 +5,7 @@ use std::time::Instant;
 use axum::http::HeaderMap;
 use axum::response::Sse;
 use axum::response::sse::Event;
+use base64::Engine;
 use futures::{Stream, StreamExt, pin_mut};
 use tokio::sync::{Mutex, mpsc};
 
@@ -13,11 +14,13 @@ use crate::convex::messages::{
   MessageStatus, ModelParams, Role as ConvexRole,
 };
 use crate::convex::threads::Thread;
-use crate::convex::{ConvexClient, ConvexError, messages, threads};
+use crate::convex::{ConvexClient, ConvexError, attachments, messages, threads};
 use crate::convex_serde;
 use crate::openrouter::completions::{OpenrouterEvent, stream_completions, stream_openrouter_chat};
 use crate::openrouter::title::generate_title_from_content;
-use crate::openrouter::types::{Annotation, ChatDelta, Message, ReasoningEffort, Role};
+use crate::openrouter::types::{
+  Annotation, ChatDelta, ContentPart, File, ImageUrl, MessageRequest, ReasoningEffort, Role,
+};
 use crate::openrouter::{OpenrouterClient, OpenrouterError};
 use crate::prelude::*;
 
@@ -93,26 +96,100 @@ struct ChatContext {
   complete_args: CompleteMessageArgs,
   custom_key: Option<String>,
   set_title: bool,
-  messages: Vec<Message>,
+  messages: Vec<MessageRequest>,
   reasoning_effort: Option<ReasoningEffort>,
 }
 
-fn message_to_part(message: ConvexMessage) -> Message {
+fn encode_base64(bytes: &[u8]) -> String {
+  base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
+async fn convex_to_messages(client: &mut ConvexClient, message: ConvexMessage) -> anyhow::Result<Vec<MessageRequest>> {
   let role = match message.role {
     ConvexRole::User => Role::User,
     ConvexRole::Assistant => Role::Assistant,
     ConvexRole::System => Role::System,
   };
 
-  let content = message
-    .parts
-    .into_iter()
-    .map(|part| match part {
-      MessagePart::Text { text } => text,
-    })
-    .collect();
+  let mut messages = vec![];
 
-  Message { role, content }
+  for part in message.parts {
+    let message = match part {
+      MessagePart::Text { text } => MessageRequest {
+        role,
+        content: ContentPart::Text { text },
+      },
+      MessagePart::Attachment { id } => {
+        let attachment = attachments::get_by_id(client, id.clone()).await?;
+        let Some(attachment) = attachment else {
+          warn!("Attachment with ID {id} not found");
+          continue;
+        };
+
+        // reject unsupported before downloading
+        match attachment.mime_type.as_ref() {
+          "application/json" | "image/png" | "image/jpeg" | "image/webp" | "application/pdf" => {}
+          _ if attachment.mime_type.starts_with("text/") => {}
+          _ => {
+            warn!("Unsupported attachment type: {}", attachment.mime_type);
+            continue;
+          }
+        }
+
+        // download data from attachment url
+        let response = reqwest::get(&attachment.url).await?;
+        if !response.status().is_success() {
+          warn!("Failed to download attachment with ID {id}: {}", response.status());
+          continue;
+        }
+
+        let bytes = response.bytes().await?;
+
+        match attachment.mime_type.as_ref() {
+          "image/png" | "image/jpeg" | "image/webp" => {
+            let base64_data = encode_base64(&bytes);
+            MessageRequest {
+              role,
+              content: ContentPart::Image {
+                image_url: ImageUrl { url: base64_data },
+              },
+            }
+          }
+          "application/json" => {
+            let text = String::from_utf8_lossy(&bytes).to_string();
+            MessageRequest {
+              role,
+              content: ContentPart::Text { text },
+            }
+          }
+          _ if attachment.mime_type.starts_with("text/") => {
+            let text = String::from_utf8_lossy(&bytes).to_string();
+            MessageRequest {
+              role,
+              content: ContentPart::Text { text },
+            }
+          }
+          "application/pdf" => {
+            let base64_data = encode_base64(&bytes);
+            MessageRequest {
+              role,
+              content: ContentPart::File {
+                file: File {
+                  filename: attachment.name.clone(),
+                  file_data: base64_data,
+                },
+              },
+            }
+          }
+          _ => unreachable!(),
+        }
+      }
+    };
+
+    messages.push(message);
+  }
+
+  Ok(messages)
 }
 
 #[tracing::instrument("create message", skip(state), err)]
@@ -163,11 +240,15 @@ pub async fn create_message(
     return Err(CreateMessageError::ResponseMessageNotPending);
   }
 
-  let Some(messages) = messages::get_until(&mut convex, thread.id.clone(), message.id.clone()).await? else {
+  let Some(convex_messages) = messages::get_until(&mut convex, thread.id.clone(), message.id.clone()).await? else {
     return Err(CreateMessageError::MessageNotFound);
   };
 
-  let messages = messages.into_iter().map(message_to_part).collect();
+  let mut messages = vec![];
+
+  for message in convex_messages {
+    messages.extend(convex_to_messages(&mut convex, message).await?);
+  }
 
   let complete_args = CompleteMessageArgs {
     message_id: message.id.clone(),
@@ -540,9 +621,14 @@ async fn stream_chat(
   }
 
   if context.set_title {
-    let messages = messages::get_by_thread_id(&mut convex_client, context.thread.id.clone()).await?;
+    let convex_messages = messages::get_by_thread_id(&mut convex_client, context.thread.id.clone()).await?;
 
-    let messages = messages.into_iter().map(message_to_part).collect::<Vec<_>>();
+    let mut messages = vec![];
+
+    for message in convex_messages {
+      let parts = convex_to_messages(&mut convex_client, message).await?;
+      messages.extend(parts);
+    }
 
     match generate_title_from_content(openrouter, context.thread.id.clone(), messages, context.custom_key).await {
       Ok(title) => {

@@ -20,6 +20,7 @@ pub enum MessageStatus {
 #[serde(tag = "type")]
 pub enum MessagePart {
   Text { text: String },
+  Attachment { id: String },
 }
 
 #[derive(Debug, Deserialize)]

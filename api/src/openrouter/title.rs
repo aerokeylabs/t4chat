@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 
 use crate::openrouter::OpenrouterClient;
 use crate::openrouter::completions::get_completions;
-use crate::openrouter::types::{Message, Role};
+use crate::openrouter::types::{ContentPart, MessageRequest, Role};
 use crate::prelude::*;
 
 const TITLE_GENERATION_SYSTEM_MESSAGE: &str = "You are an AI assistant that creates short, descriptive titles. Your only task is to generate a concise title (max 50 characters) based on the user's messages. You must always return a title, even if the conversation seems unclear. Do not add any explanation, just provide the title text. Never return an empty response.";
@@ -13,22 +13,26 @@ const TITLE_GENERATION_MODEL: &str = "anthropic/claude-3-haiku";
 pub async fn generate_title_from_content(
   openrouter: Arc<Mutex<OpenrouterClient>>,
   thread_id: String,
-  thread_messages: Vec<Message>,
+  thread_messages: Vec<MessageRequest>,
   custom_key: Option<String>,
 ) -> anyhow::Result<String> {
   debug!("generating title for thread: {}", thread_id);
 
-  let system_message = Message {
+  let system_message = MessageRequest {
     role: Role::System,
-    content: TITLE_GENERATION_SYSTEM_MESSAGE.to_string(),
+    content: ContentPart::Text {
+      text: TITLE_GENERATION_SYSTEM_MESSAGE.to_string(),
+    },
   };
 
   let mut messages = vec![system_message];
   messages.extend(thread_messages);
 
-  messages.push(Message {
+  messages.push(MessageRequest {
     role: Role::User,
-    content: "What is the title of this conversation?".to_string(),
+    content: ContentPart::Text {
+      text: "What is the title of this conversation?".to_string(),
+    },
   });
 
   let completions = get_completions(openrouter, TITLE_GENERATION_MODEL, messages, custom_key, Some(50), None).await?;

@@ -58,3 +58,20 @@ export const getUrl = query({
     return { url, ...attachment };
   },
 });
+
+// api only route
+export const apiGetById = query({
+  args: {
+    apiKey: v.string(),
+    id: v.id('attachments'),
+  },
+  handler: async (ctx, { apiKey, id }) => {
+    validateKey(apiKey);
+    const attachment = await ctx.db.get(id);
+    if (attachment?.storageId == null) return null;
+
+    const url = (await ctx.storage.getUrl(attachment.storageId)) ?? null;
+
+    return { url, ...attachment };
+  },
+});

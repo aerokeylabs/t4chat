@@ -190,12 +190,7 @@ export const apiComplete = mutation({
     apiKey: v.string(),
     messageId: v.id('messages'),
     model: v.string(),
-    modelParams: v.optional(
-      v.object({
-        reasoningEffort: v.string(),
-        includeSearch: v.boolean(),
-      }),
-    ),
+    modelParams: v.optional(modelParamsValidator),
     promptTokenCount: v.number(),
     tokenCount: v.number(),
     durationMs: v.number(),

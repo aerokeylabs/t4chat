@@ -1,6 +1,3 @@
-use serde::Serialize;
-use specta::Type;
-
 pub mod config;
 pub mod convex;
 pub mod convex_serde;

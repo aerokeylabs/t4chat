@@ -84,6 +84,9 @@ pub enum CreateMessageError {
   Convex(#[from] ConvexError),
   #[error("no model specified")]
   NoModelSpecified,
+
+  #[error("OpenRouter key not found in headers")]
+  OpenrouterKeyNotFound,
 }
 
 into_response!(
@@ -95,6 +98,8 @@ into_response!(
     Unexpected(_) => StatusCode::INTERNAL_SERVER_ERROR,
     Serialization(_) => StatusCode::INTERNAL_SERVER_ERROR,
     Convex(_) => StatusCode::INTERNAL_SERVER_ERROR,
+
+    OpenrouterKeyNotFound => StatusCode::UNAUTHORIZED,
   }
 );
 
@@ -113,21 +118,18 @@ fn encode_base64(bytes: &[u8]) -> String {
   base64::engine::general_purpose::STANDARD.encode(bytes)
 }
 
-async fn convex_to_messages(client: &mut ConvexClient, message: ConvexMessage) -> anyhow::Result<Vec<MessageRequest>> {
+async fn convex_to_messages(client: &mut ConvexClient, message: ConvexMessage) -> anyhow::Result<MessageRequest> {
   let role = match message.role {
     ConvexRole::User => Role::User,
     ConvexRole::Assistant => Role::Assistant,
     ConvexRole::System => Role::System,
   };
 
-  let mut messages = vec![];
+  let mut request = MessageRequest { role, content: vec![] };
 
   for part in message.parts {
-    let message = match part {
-      MessagePart::Text { text } => MessageRequest {
-        role,
-        content: ContentPart::Text { text },
-      },
+    let part = match part {
+      MessagePart::Text { text } => ContentPart::Text { text },
       MessagePart::Attachment { id } => {
         let attachment = attachments::get_by_id(client, id.clone()).await?;
         let Some(attachment) = attachment else {
@@ -157,36 +159,22 @@ async fn convex_to_messages(client: &mut ConvexClient, message: ConvexMessage) -
         match attachment.mime_type.as_ref() {
           "image/png" | "image/jpeg" | "image/webp" => {
             let base64_data = encode_base64(&bytes);
-            MessageRequest {
-              role,
-              content: ContentPart::Image {
-                image_url: ImageUrl { url: base64_data },
-              },
+            ContentPart::Image {
+              image_url: ImageUrl { url: base64_data },
             }
           }
-          "application/json" => {
-            let text = String::from_utf8_lossy(&bytes).to_string();
-            MessageRequest {
-              role,
-              content: ContentPart::Text { text },
-            }
-          }
-          _ if attachment.mime_type.starts_with("text/") => {
-            let text = String::from_utf8_lossy(&bytes).to_string();
-            MessageRequest {
-              role,
-              content: ContentPart::Text { text },
-            }
-          }
+          "application/json" => ContentPart::Text {
+            text: String::from_utf8_lossy(&bytes).to_string(),
+          },
+          _ if attachment.mime_type.starts_with("text/") => ContentPart::Text {
+            text: String::from_utf8_lossy(&bytes).to_string(),
+          },
           "application/pdf" => {
             let base64_data = encode_base64(&bytes);
-            MessageRequest {
-              role,
-              content: ContentPart::File {
-                file: File {
-                  filename: attachment.name.clone(),
-                  file_data: base64_data,
-                },
+            ContentPart::File {
+              file: File {
+                filename: attachment.name.clone(),
+                file_data: base64_data,
               },
             }
           }
@@ -195,10 +183,10 @@ async fn convex_to_messages(client: &mut ConvexClient, message: ConvexMessage) -
       }
     };
 
-    messages.push(message);
+    request.content.push(part);
   }
 
-  Ok(messages)
+  Ok(request)
 }
 
 #[tracing::instrument("create message", skip(state), err)]
@@ -235,6 +223,10 @@ pub async fn create_message(
     .and_then(|value| value.to_str().ok())
     .map(|s| s.to_string());
 
+  let Some(custom_key) = custom_key else {
+    return Err(CreateMessageError::OpenrouterKeyNotFound);
+  };
+
   let mut convex = state.convex.clone();
 
   let Some(thread) = threads::get_by_id(&mut convex, thread_id.to_string()).await? else {
@@ -256,7 +248,7 @@ pub async fn create_message(
   let mut messages = vec![];
 
   for message in convex_messages {
-    messages.extend(convex_to_messages(&mut convex, message).await?);
+    messages.push(convex_to_messages(&mut convex, message).await?);
   }
 
   let complete_args = CompleteMessageArgs {
@@ -294,7 +286,8 @@ pub async fn create_message(
     message,
     thread,
     complete_args,
-    custom_key,
+    // force user supplied key for now
+    custom_key: Some(custom_key),
     set_title,
     messages,
     reasoning_effort,
@@ -637,8 +630,7 @@ async fn stream_chat(
     let mut messages = vec![];
 
     for message in convex_messages {
-      let parts = convex_to_messages(&mut convex_client, message).await?;
-      messages.extend(parts);
+      messages.push(convex_to_messages(&mut convex_client, message).await?);
     }
 
     match generate_title_from_content(openrouter, context.thread.id.clone(), messages, context.custom_key).await {

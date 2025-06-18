@@ -204,7 +204,7 @@ pub enum ContentPart {
 #[serde(rename_all = "snake_case")]
 pub struct MessageRequest {
   pub role: Role,
-  pub content: ContentPart,
+  pub content: Vec<ContentPart>,
 }
 
 #[derive(Debug, Deserialize)]

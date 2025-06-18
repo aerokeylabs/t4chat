@@ -1,5 +1,5 @@
 mod de;
 mod ser;
 
-pub use de::{from_value, from_value_ref, Error as DeError};
-pub use ser::{to_map, to_value, Error as SerError};
+pub use de::{Error as DeError, from_value, from_value_ref};
+pub use ser::{Error as SerError, to_map, to_value};

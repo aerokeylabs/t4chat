@@ -26,8 +26,6 @@ export type ModelResponse = {
 
 export type ReasoningEffortRequest = 'low' | 'medium' | 'high';
 
-export type TestType = { awa: string; wawa: number };
-
 /**
  * ```md
  * |                                            worker

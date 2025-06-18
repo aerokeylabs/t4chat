@@ -4,6 +4,7 @@ import Chatbox from '@/components/Chatbox.vue';
 import LoadingDots from '@/components/LoadingDots.vue';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useMutation } from '@/composables/convex';
+import { useRetryEventBus } from '@/composables/retryEventBus';
 import { useSelectedModel } from '@/composables/selectedModel';
 import { useStreamingMessage } from '@/composables/streamingMessage';
 import { api } from '@/convex/_generated/api';
@@ -34,19 +35,7 @@ let eventSource: SSE | null = null;
 
 type MessagePart = ArgumentsType<typeof createMessageMutation>[0]['parts'][number];
 
-async function onSend(message: string, files?: File[]) {
-  if (selected.model == null) {
-    console.warn('No model selected, cannot send message');
-    toast.error('Please select a model before sending a message');
-    return;
-  }
-
-  scrollToBottom(true);
-
-  const modelParams = { includeSearch: selected.searchEnabled, reasoningEffort: selected.reasoningEffort };
-
-  let activeThreadId: string;
-
+function prepareForGeneration() {
   if (eventSource != null) {
     console.warn('Cancelling previous streaming message');
 
@@ -63,120 +52,13 @@ async function onSend(message: string, files?: File[]) {
 
     streamingMessage.clear();
   }
+}
 
+async function generateMessage(request: CreateMessageRequest) {
   try {
-    const uploadedFiles = [];
+    eventSource = apiPostSse<CreateMessageRequest>(Routes.message(), request);
 
-    for (const file of files ?? []) {
-      console.info('Uploading file:', file.name);
-
-      const { id, uploadUrl } = await generateUploadUrlMutation({
-        name: file.name,
-        mimeType: file.type,
-        size: file.size,
-      });
-
-      if (uploadUrl == null) {
-        console.error('Failed to generate upload URL for file:', file.name);
-        toast.error(`Failed to upload file: ${file.name}`);
-        return;
-      }
-
-      console.debug('Generated upload URL:', uploadUrl);
-
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': file.type,
-        },
-        body: file,
-      });
-
-      if (!response.ok) {
-        console.error('Failed to upload file:', file.name, response.statusText);
-        toast.error(`Failed to upload file: ${file.name}`);
-        return;
-      }
-
-      const { storageId } = await response.json();
-
-      const attachment = await completeUploadMutation({ id, storageId });
-
-      if (attachment == null) {
-        console.error('Failed to complete upload for file:', file.name, storageId);
-        toast.error(`Failed to complete upload for file: ${file.name}`);
-        return;
-      }
-
-      uploadedFiles.push(attachment);
-    }
-
-    streamingMessage.waitingForFirstChunk = true;
-
-    const parts: MessagePart[] = [{ type: 'text', text: message }];
-
-    if (uploadedFiles.length > 0) {
-      parts.push(...uploadedFiles.map((file) => ({ type: 'attachment' as const, id: file._id })));
-    }
-
-    if (threadId.value != null) {
-      console.info('send message to thread', threadId.value, 'with content', message);
-      const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
-      const result = await createMessageMutation({
-        threadId: threadId.value as Id<'threads'>,
-        parts,
-        model: modelSlug,
-        modelParams: {
-          includeSearch: modelParams.includeSearch,
-          reasoningEffort: modelParams.reasoningEffort ?? undefined,
-        },
-      });
-
-      if (result == null) {
-        console.error('Failed to create message in thread', threadId.value);
-        return;
-      }
-
-      console.debug('created message', result.assistantMessageId, 'in thread', threadId.value);
-
-      const modelId = selected.searchEnabled ? `${selected.model.id}:online` : selected.model.id;
-      eventSource = apiPostSse<CreateMessageRequest>(Routes.message(), {
-        threadId: threadId.value,
-        responseMessageId: result.assistantMessageId,
-        model: modelId,
-        modelParams,
-      });
-
-      activeThreadId = threadId.value;
-    } else {
-      console.debug('create new thread with content', message);
-
-      const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
-      const thread = await createThreadMutation({
-        model: modelSlug,
-        modelParams: {
-          includeSearch: modelParams.includeSearch,
-          reasoningEffort: modelParams.reasoningEffort ?? undefined,
-        },
-        parts,
-      });
-
-      console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
-
-      router.push(`/chat/${thread.threadId}`);
-
-      const modelId = selected.searchEnabled ? `${selected.model.id}:online` : selected.model.id;
-      eventSource = apiPostSse<CreateMessageRequest>(Routes.message(), {
-        threadId: thread.threadId,
-        responseMessageId: thread.assistantMessageId,
-        model: modelId,
-        modelParams,
-      });
-
-      activeThreadId = thread.threadId;
-    }
-
-    streamingMessage.onStreamStarted(activeThreadId);
+    streamingMessage.onStreamStarted(request.threadId);
 
     let ended = false;
 
@@ -279,11 +161,203 @@ async function onSend(message: string, files?: File[]) {
     });
   } catch (error) {
     console.error('Error sending message:', error);
+
     streamingMessage.onStreamFailed();
+
     if (eventSource) {
       eventSource.close();
       eventSource = null;
     }
+  }
+}
+
+function streamFailed(error?: Error) {
+  console.error('Streaming message failed:', error);
+  streamingMessage.onStreamFailed();
+
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+
+  toast.error('Failed to stream message. Please try again.');
+}
+
+const retryMessageMutation = useMutation(api.messages.retryMessage);
+const retryEventBus = useRetryEventBus();
+
+async function onRetry(messageId: Id<'messages'>) {
+  // todo: that
+  console.info('Retrying message with ID:', messageId);
+  if (selected.model == null) {
+    console.warn('No model selected, cannot retry message');
+    toast.error('Please select a model before retrying a message');
+    return;
+  }
+
+  if (threadId.value == null) {
+    console.warn('No thread ID available, cannot retry message');
+    toast.error('Failed to retry message.');
+    return;
+  }
+
+  const modelParams = { includeSearch: selected.searchEnabled, reasoningEffort: selected.reasoningEffort };
+  const model = modelParams.includeSearch ? `${selected.model.id}:online` : selected.model.id;
+
+  try {
+    const { assistantMessageId } = await retryMessageMutation({
+      messageId,
+      model,
+      modelParams: {
+        includeSearch: modelParams.includeSearch,
+        reasoningEffort: modelParams.reasoningEffort ?? undefined,
+      },
+    });
+
+    prepareForGeneration();
+
+    generateMessage({
+      threadId: threadId.value as Id<'threads'>,
+      responseMessageId: assistantMessageId,
+      model,
+      modelParams,
+    });
+  } catch (error) {
+    console.error('Error retrying message:', error);
+
+    streamFailed(error as Error);
+
+    toast.error('Failed to retry message. Please try again.');
+  }
+}
+
+retryEventBus.on(onRetry);
+
+async function onSend(message: string, files?: File[]) {
+  if (selected.model == null) {
+    console.warn('No model selected, cannot send message');
+    toast.error('Please select a model before sending a message');
+    return;
+  }
+
+  const modelParams = { includeSearch: selected.searchEnabled, reasoningEffort: selected.reasoningEffort };
+  const modelId = modelParams.includeSearch ? `${selected.model.id}:online` : selected.model.id;
+
+  scrollToBottom(true);
+
+  prepareForGeneration();
+
+  try {
+    // region: upload attachments
+
+    const uploadedFiles = [];
+
+    for (const file of files ?? []) {
+      console.info('Uploading file:', file.name);
+
+      const { id, uploadUrl } = await generateUploadUrlMutation({
+        name: file.name,
+        mimeType: file.type,
+        size: file.size,
+      });
+
+      if (uploadUrl == null) {
+        console.error('Failed to generate upload URL for file:', file.name);
+        toast.error(`Failed to upload file: ${file.name}`);
+        return;
+      }
+
+      console.debug('Generated upload URL:', uploadUrl);
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type,
+        },
+        body: file,
+      });
+
+      if (!response.ok) {
+        console.error('Failed to upload file:', file.name, response.statusText);
+        toast.error(`Failed to upload file: ${file.name}`);
+        return;
+      }
+
+      const { storageId } = await response.json();
+
+      const attachment = await completeUploadMutation({ id, storageId });
+
+      if (attachment == null) {
+        console.error('Failed to complete upload for file:', file.name, storageId);
+        toast.error(`Failed to complete upload for file: ${file.name}`);
+        return;
+      }
+
+      uploadedFiles.push(attachment);
+    }
+
+    streamingMessage.waitingForFirstChunk = true;
+
+    const parts: MessagePart[] = [{ type: 'text', text: message }];
+
+    if (uploadedFiles.length > 0) {
+      parts.push(...uploadedFiles.map((file) => ({ type: 'attachment' as const, id: file._id })));
+    }
+
+    // endregion
+
+    if (threadId.value != null) {
+      console.info('send message to thread', threadId.value, 'with content', message);
+      const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
+      const result = await createMessageMutation({
+        threadId: threadId.value as Id<'threads'>,
+        parts,
+        model: modelSlug,
+        modelParams: {
+          includeSearch: modelParams.includeSearch,
+          reasoningEffort: modelParams.reasoningEffort ?? undefined,
+        },
+      });
+
+      if (result == null) {
+        console.error('Failed to create message in thread', threadId.value);
+        return;
+      }
+
+      console.debug('created message', result.assistantMessageId, 'in thread', threadId.value);
+
+      generateMessage({
+        threadId: threadId.value,
+        responseMessageId: result.assistantMessageId,
+        model: modelId,
+        modelParams,
+      });
+    } else {
+      console.debug('create new thread with content', message);
+
+      const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
+      const thread = await createThreadMutation({
+        model: modelSlug,
+        modelParams: {
+          includeSearch: modelParams.includeSearch,
+          reasoningEffort: modelParams.reasoningEffort ?? undefined,
+        },
+        parts,
+      });
+
+      console.debug('created thread', thread.threadId, 'with assistant message', thread.assistantMessageId);
+
+      router.push(`/chat/${thread.threadId}`);
+
+      generateMessage({
+        threadId: thread.threadId,
+        responseMessageId: thread.assistantMessageId,
+        model: modelId,
+        modelParams,
+      });
+    }
+  } catch (error) {
+    streamFailed(error as Error);
   }
 }
 
@@ -327,6 +401,7 @@ function scrollToBottom(force = false) {
       top: scrollTarget.value.offsetTop,
       behavior: 'smooth',
     });
+
     notAtBottom.value = false;
   }
 }

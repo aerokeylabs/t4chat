@@ -3,13 +3,10 @@ import MessagePartAttachment from '@/components/messages/MessagePartAttachment.v
 import MessagePartText from '@/components/messages/MessagePartText.vue';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useMutation } from '@/composables/convex';
-import { useSelectedModel } from '@/composables/selectedModel';
-import { api } from '@/convex/_generated/api';
+import { useRetryEventBus } from '@/composables/retryEventBus';
 import type { UserMessage } from '@/lib/types/convex';
 import { copyToClipboard } from '@/lib/utils';
 import { CopyIcon, EditIcon, RefreshCcwIcon } from 'lucide-vue-next';
-import { toast } from 'vue-sonner';
 
 const props = defineProps<{
   message: UserMessage;
@@ -26,24 +23,10 @@ function copy() {
   );
 }
 
-const selected = useSelectedModel();
-
-const retryMessageMutation = useMutation(api.messages.retryMessage);
+const eventBus = useRetryEventBus();
 
 function retryMessage() {
-  if (selected.slug == null) {
-    toast.error('No model selected');
-    return;
-  }
-
-  retryMessageMutation({
-    messageId: props.message._id,
-    model: selected.slug,
-    modelParams: {
-      reasoningEffort: selected.reasoningEffort ?? undefined,
-      includeSearch: selected.searchEnabled,
-    },
-  });
+  eventBus.emit(props.message._id);
 }
 </script>
 

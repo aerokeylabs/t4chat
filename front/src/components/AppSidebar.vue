@@ -33,6 +33,43 @@ const deleteThreadMutation = useMutation(api.threads.deleteThreadById);
 const pinThreadMutation = useMutation(api.threads.pinThreadById);
 const unpinThreadMutation = useMutation(api.threads.unpinThreadById);
 
+const updateThreadTitleMutation = useMutation(api.threads.updateTitle);
+
+const editingThreadId = ref<string | null>(null);
+const newThreadTitle = ref('');
+
+const startEditing = (thread: Thread, event: Event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  editingThreadId.value = thread._id;
+  newThreadTitle.value = thread.title || '';
+};
+
+const saveTitle = async (threadId: string, event: Event) => {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const title = newThreadTitle.value.trim();
+  if (!title) return;
+
+  try {
+    await updateThreadTitleMutation({
+      threadId: threadId as Id<'threads'>,
+      title: title
+    });
+    editingThreadId.value = null;
+  } catch (error) {
+    console.error('Error updating thread title:', error);
+    toast.error('Failed to update thread title');
+  }
+};
+
+const cancelEditing = (event: Event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  saveTitle(editingThreadId.value as string, event);
+};
+
 const deleteThread = async (threadId: string, event: Event) => {
   event.preventDefault();
   event.stopPropagation();
@@ -239,9 +276,22 @@ const isOnNewPage = computed(() => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" class="sidebar-button w-full justify-start px-2" @click="navigate">
-                  <span class="thread-title">
-                    {{ thread.title }}
-                  </span>
+                  <div class="thread-title" @dblclick.stop="startEditing(thread, $event)">
+                    <template v-if="editingThreadId === thread._id">
+                      <input
+                        v-model="newThreadTitle"
+                        @keyup.enter="saveTitle(thread._id, $event)"
+                        @keyup.esc="cancelEditing($event)"
+                        @click.stop
+                        @blur="saveTitle(thread._id, $event)"
+                        class="bg-transparent outline-none w-full"
+                        ref="titleInput"
+                      />
+                    </template>
+                    <template v-else>
+                      {{ thread.title }}
+                    </template>
+                  </div>
                   <div class="action-buttons">
                     <Button
                       variant="ghost"

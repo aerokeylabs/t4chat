@@ -211,3 +211,7 @@ body input[data-com-onepassword-filled]:focus {
     transform: translateX(-50%) scale(1);
   }
 }
+
+.font-title {
+  font-family: 'Montserrat', sans-serif;
+}

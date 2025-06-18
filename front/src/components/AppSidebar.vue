@@ -35,6 +35,7 @@ import { toast } from 'vue-sonner';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import Theme from '@/components/Theme.vue';
+import Name from '@/components/Name.vue';
 
 const menu = useCommandMenu();
 
@@ -257,8 +258,8 @@ const isOnNewPage = computed(() => {
 
   <Sidebar variant="inset">
     <SidebarHeader>
-      <SidebarMenuItem class="flex h-16 items-center justify-center">
-        <span>thingy</span>
+      <SidebarMenuItem class="-mt-2 mb-2 flex h-10 items-center justify-center">
+        <h1 class="font-title select-none text-xl font-medium"><Name /></h1>
       </SidebarMenuItem>
 
       <SidebarMenuItem class="px-1">

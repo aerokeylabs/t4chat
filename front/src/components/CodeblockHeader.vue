@@ -8,6 +8,8 @@ const props = defineProps<{
   language: string;
   onCopy: () => void;
   onWrap: (wrap: boolean) => void;
+
+  hideControls?: boolean;
 }>();
 
 function setWrap(value: boolean) {
@@ -37,7 +39,7 @@ watch(
   <div class="codeblock-header">
     <span>{{ language }}</span>
 
-    <div>
+    <div :class="hideControls ? 'pointer-events-none opacity-0' : ''">
       <Button variant="ghost" size="icon-sm" :active="wrap" @click="toggleWrap">
         <WrapTextIcon class="size-4" />
       </Button>

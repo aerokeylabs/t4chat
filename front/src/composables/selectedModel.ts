@@ -7,7 +7,7 @@ import { computed } from 'vue';
 export type ReasoningEffort = null | 'low' | 'medium' | 'high';
 
 export const useSelectedModel = defineStore('selectedModel', () => {
-  const slug = useLocalStorage<string | null>('selected-model', null);
+  const slug = useLocalStorage<string>('selected-model', 'google/gemini-2.5-flash-lite-preview-06-17');
   const args = computed(() => ({ slug: slug.value ?? '' }));
   const { data: model } = useReactiveQuery(api.models.getBySlug, args);
 

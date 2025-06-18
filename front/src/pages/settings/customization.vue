@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CodeblockHeader from '@/components/CodeblockHeader.vue';
 import Name from '@/components/Name.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,11 +14,13 @@ import {
   TagsInputItemText,
 } from '@/components/ui/tags-input';
 import { useSettings } from '@/composables/settings';
+import { createHighlighter } from '@/lib/shiki';
+import { asyncComputed } from '@vueuse/core';
 
 const settings = useSettings();
 
-const mainFontOptions = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat'];
-const codeFontOptions = ['Fira Code', 'JetBrains Mono', 'Source Code Pro', 'Hack', 'Consolas'];
+const mainFontOptions = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'system'];
+const codeFontOptions = ['Fira Code', 'JetBrains Mono', 'Source Code Pro', 'Hack', 'Consolas', 'system'];
 const presetTraits = ['friendly', 'witty', 'concise', 'curious', 'empathetic', 'creative', 'patient'];
 
 function addTrait(trait: string) {
@@ -26,10 +29,30 @@ function addTrait(trait: string) {
     settings.customization.userTraits = [...settings.customization.userTraits, trait];
   }
 }
+
+const CODE_EXAMPLE = `function greet(name: string) {
+	console.log(\`Hello, \${name}!\`);
+	return true;
+}`;
+
+const highlighter = asyncComputed(async () => await createHighlighter());
+
+const highlighted = asyncComputed(async () => {
+  if (!highlighter.value) return '';
+  return highlighter.value.codeToHtml(CODE_EXAMPLE, {
+    lang: 'typescript',
+    themes: {
+      light: 'min-light',
+      dark: 'min-dark',
+    },
+  });
+});
+
+const parent = document.documentElement;
 </script>
 
 <template>
-  <section class="flex flex-col gap-8">
+  <section class="flex flex-col gap-8 pb-24">
     <div>
       <h1 class="text-2xl font-bold">Customization</h1>
       <p class="text-muted-foreground">Personalize your <Name /> experience.</p>
@@ -119,32 +142,61 @@ function addTrait(trait: string) {
             </p>
           </div>
 
-          <div class="space-y-2">
-            <Label for="mainFont">Main Font</Label>
-            <Select v-model="settings.customization.mainFont">
-              <SelectTrigger class="w-[200px]">
-                <SelectValue placeholder="Select a font" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="font in mainFontOptions" :key="font" :value="font">
-                  {{ font }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <div class="mt-12 flex flex-row justify-between gap-2">
+            <div class="flex flex-col gap-4">
+              <div class="space-y-2">
+                <Label for="mainFont">Main Font</Label>
+                <p class="text-muted-foreground text-xs">Used in general text throughout the app.</p>
+                <Select v-model="settings.customization.mainFont">
+                  <SelectTrigger class="w-[200px]">
+                    <SelectValue placeholder="Select a font" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="font in mainFontOptions" :key="font" :value="font">
+                      {{ font }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div class="space-y-2">
-            <Label for="codeFont">Code Font</Label>
-            <Select v-model="settings.customization.codeFont">
-              <SelectTrigger class="w-[200px]">
-                <SelectValue placeholder="Select a font" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem v-for="font in codeFontOptions" :key="font" :value="font">
-                  {{ font }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+              <div class="space-y-2">
+                <Label for="codeFont">Code Font</Label>
+                <p class="text-muted-foreground text-xs">Used in code blocks and inline code in chat messages.</p>
+                <Select v-model="settings.customization.codeFont">
+                  <SelectTrigger class="w-[200px]">
+                    <SelectValue placeholder="Select a font" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="font in codeFontOptions" :key="font" :value="font">
+                      {{ font }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div class="flex w-full max-w-md flex-col gap-2">
+              <Label class="mb-2 text-lg">Font Preview</Label>
+              <div class="flex w-full flex-col gap-4 rounded-lg border border-dashed p-4">
+                <p class="prose bg-secondary border-border max-w-xs self-end rounded-lg border p-4">
+                  Can you write me a simple hello world program?
+                </p>
+
+                <div class="prose">
+                  <p>Sure, here you go:</p>
+
+                  <CodeblockHeader
+                    language="typescript"
+                    hide-controls
+                    :onCopy="() => {}"
+                    :onWrap="() => {}"
+                    wrap
+                    :parent
+                  />
+                  <div class="codeblock patched" v-html="highlighted"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

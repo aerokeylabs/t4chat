@@ -23,7 +23,6 @@ declare module 'vue-router/auto-routes' {
     '/chat/[thread]': RouteRecordInfo<'/chat/[thread]', '/chat/:thread', { thread: ParamValue<true> }, { thread: ParamValue<false> }>,
     '/settings': RouteRecordInfo<'/settings', '/settings', Record<never, never>, Record<never, never>>,
     '/settings/account': RouteRecordInfo<'/settings/account', '/settings/account', Record<never, never>, Record<never, never>>,
-    '/settings/attachments': RouteRecordInfo<'/settings/attachments', '/settings/attachments', Record<never, never>, Record<never, never>>,
     '/settings/customization': RouteRecordInfo<'/settings/customization', '/settings/customization', Record<never, never>, Record<never, never>>,
     '/settings/history': RouteRecordInfo<'/settings/history', '/settings/history', Record<never, never>, Record<never, never>>,
     '/settings/keys': RouteRecordInfo<'/settings/keys', '/settings/keys', Record<never, never>, Record<never, never>>,

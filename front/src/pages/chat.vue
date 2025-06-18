@@ -19,8 +19,7 @@ import { toast } from 'vue-sonner';
 
 const route = useRoute();
 const router = useRouter();
-const threadId = computed(() => route.params.thread as string);
-const isInThread = computed(() => threadId.value != null);
+const threadId = computed(() => (route.params as { thread: string | undefined }).thread ?? null);
 
 const createThreadMutation = useMutation(api.threads.create);
 const createMessageMutation = useMutation(api.threads.createMessage);
@@ -120,7 +119,7 @@ async function onSend(message: string, files?: File[]) {
       parts.push(...uploadedFiles.map((file) => ({ type: 'attachment' as const, id: file._id })));
     }
 
-    if (isInThread.value) {
+    if (threadId.value != null) {
       console.info('send message to thread', threadId.value, 'with content', message);
       const modelSlug = selected.searchEnabled ? `${selected.model.slug}:online` : selected.model.slug;
       const result = await createMessageMutation({
@@ -289,6 +288,8 @@ async function onSend(message: string, files?: File[]) {
 }
 
 async function onCancel() {
+  if (threadId.value == null) return;
+
   const result = await cancelMessage(threadId.value);
 
   if (result.success) {

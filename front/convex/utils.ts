@@ -1,4 +1,4 @@
-import { GenericQueryCtx } from 'convex/server';
+import type { GenericQueryCtx } from 'convex/server';
 import { ConvexError } from 'convex/values';
 
 export async function getIdentity(ctx: GenericQueryCtx<any>) {
@@ -8,12 +8,14 @@ export async function getIdentity(ctx: GenericQueryCtx<any>) {
 }
 
 export function getApiUrl() {
+  // @ts-ignore
   const apiUrl = process.env.API_URL;
   if (!apiUrl) throw new ConvexError('API URL is not set in environment variables');
   return apiUrl;
 }
 
 export function getApiKey() {
+  // @ts-ignore
   const apiKey = process.env.API_KEY;
   if (!apiKey) throw new ConvexError('API key is not set in environment variables');
   return apiKey;

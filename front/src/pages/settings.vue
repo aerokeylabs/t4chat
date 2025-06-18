@@ -18,7 +18,7 @@ const navRoutes = [
   ['/settings/account', 'Account'],
   ['/settings/customization', 'Customization'],
   ['/settings/history', 'History & Sync'],
-  ['/settings/keys', 'API Keys']
+  ['/settings/keys', 'API Keys'],
 ];
 
 const route = useRoute();

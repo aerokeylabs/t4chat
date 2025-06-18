@@ -78,7 +78,7 @@ const deleteThread = async (threadId: string, event: Event) => {
 
     toast.success('Thread deleted');
 
-    if (route.params.thread === threadId) {
+    if ('thread' in route.params && route.params.thread === threadId) {
       router.push('/chat');
     }
   } catch (error) {

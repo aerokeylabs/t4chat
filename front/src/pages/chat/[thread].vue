@@ -11,7 +11,7 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 
 const route = useRoute();
-const args = computed(() => ({ threadId: route.params.thread as Id<'threads'> }));
+const args = computed(() => ({ threadId: (route.params as { thread: string }).thread as Id<'threads'> }));
 
 const { data, error } = useReactiveQuery(api.messages.getByThreadId, args);
 

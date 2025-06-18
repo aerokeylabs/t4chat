@@ -210,7 +210,7 @@ async function onRetry(messageId: Id<'messages'>) {
       model,
       modelParams: {
         includeSearch: modelParams.includeSearch,
-        reasoningEffort: modelParams.reasoningEffort ?? undefined,
+        reasoningEffort: modelParams.reasoningEffort == null ? undefined : modelParams.reasoningEffort,
       },
     });
 
@@ -315,7 +315,7 @@ async function onSend(message: string, files?: File[]) {
         model: modelSlug,
         modelParams: {
           includeSearch: modelParams.includeSearch,
-          reasoningEffort: modelParams.reasoningEffort ?? undefined,
+          reasoningEffort: modelParams.reasoningEffort == null ? undefined : modelParams.reasoningEffort,
         },
       });
 
@@ -340,7 +340,7 @@ async function onSend(message: string, files?: File[]) {
         model: modelSlug,
         modelParams: {
           includeSearch: modelParams.includeSearch,
-          reasoningEffort: modelParams.reasoningEffort ?? undefined,
+          reasoningEffort: modelParams.reasoningEffort == null ? undefined : modelParams.reasoningEffort,
         },
         parts,
       });

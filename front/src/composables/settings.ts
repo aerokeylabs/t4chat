@@ -15,6 +15,16 @@ export type CustomizationSettings = {
   _updateFromApi?: boolean;
 };
 
+function setFonts(mainFont: string, codeFont: string) {
+  if (mainFont === 'system') document.documentElement.style.setProperty('--font-sans', 'system-ui, sans-serif');
+  else document.documentElement.style.setProperty('--font-sans', `"${mainFont}", sans-serif`);
+
+  if (codeFont === 'system') document.documentElement.style.setProperty('--font-mono', 'monospace');
+  else document.documentElement.style.setProperty('--font-mono', `"${codeFont}", monospace`);
+
+  console.debug('Fonts set:', { mainFont, codeFont });
+}
+
 export const useSettings = defineStore('settings', () => {
   const settingsMutation = useMutation(api.settings.updateSettings);
 
@@ -84,6 +94,12 @@ export const useSettings = defineStore('settings', () => {
   const customization = ref<CustomizationSettings | null>(null);
 
   syncRef(customization, innerCustomization, { deep: true });
+
+  watch(
+    customization,
+    () => setFonts(customization.value?.mainFont ?? 'Inter', customization.value?.codeFont ?? 'Fira Code'),
+    { deep: true, immediate: true },
+  );
 
   return {
     customization,

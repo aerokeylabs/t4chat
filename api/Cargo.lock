@@ -1710,6 +1710,7 @@ dependencies = [
 [[package]]
 name = "reqwest-eventsource"
 version = "0.6.0"
+source = "git+https://github.com/fooooooooooooooo/reqwest-eventsource#c805b1e809866d013605190d71fe44b56bde49b0"
 dependencies = [
  "eventsource-stream",
  "futures-core",

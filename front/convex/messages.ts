@@ -44,6 +44,18 @@ export const getByThreadId = query({
   },
 });
 
+export const getAnnotationsByMessageId = query({
+  args: { messageId: v.id('messages') },
+  handler: async (ctx, args) => {
+    const identity = await getIdentity(ctx);
+
+    const message = await ctx.db.get(args.messageId);
+    if (message?.userId !== identity.tokenIdentifier) return null;
+
+    return message.annotations;
+  },
+});
+
 // api only route
 export const apiGetByThreadId = query({
   args: { apiKey: v.string(), threadId: v.id('threads') },

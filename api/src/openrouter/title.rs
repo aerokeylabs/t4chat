@@ -35,7 +35,7 @@ pub async fn generate_title_from_content(
     }],
   });
 
-  let completions = get_completions(openrouter, TITLE_GENERATION_MODEL, messages, custom_key, Some(50), None).await?;
+  let completions = get_completions(openrouter, TITLE_GENERATION_MODEL, messages, custom_key, Some(50), None, false).await?;
 
   let title = completions
     .choices

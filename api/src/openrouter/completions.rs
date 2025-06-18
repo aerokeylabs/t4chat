@@ -8,12 +8,20 @@ use stream_cancel::{Trigger, Valved};
 use tokio::sync::Mutex;
 
 use crate::openrouter::types::{
-  ChatCompletion, CompletionRequest, CompletionResponse, MessageRequest, ReasoningEffort, ReasoningRequest,
+  ChatCompletion, CompletionRequest, CompletionResponse, MessageRequest, PdfOptions, PluginRequest, ReasoningEffort,
+  ReasoningRequest, UsageRequest,
 };
 use crate::openrouter::{OpenrouterClient, OpenrouterError};
 use crate::prelude::*;
 
 const COMPLETIONS_PATH: &str = "chat/completions";
+
+fn pdf_plugin() -> PluginRequest {
+  PluginRequest {
+    id: "file-parser".into(),
+    pdf: PdfOptions { engine: None },
+  }
+}
 
 pub async fn get_completions(
   client: Arc<Mutex<OpenrouterClient>>,
@@ -22,10 +30,13 @@ pub async fn get_completions(
   custom_key: Option<String>,
   max_tokens: Option<u32>,
   reasoning: Option<ReasoningEffort>,
+  enable_pdf: bool,
 ) -> Result<CompletionResponse, OpenrouterError> {
   let client = client.lock().await;
   let builder = client.request_builder(Method::POST, COMPLETIONS_PATH, custom_key)?;
   drop(client);
+
+  let plugins = if enable_pdf { vec![pdf_plugin()] } else { vec![] };
 
   let request = CompletionRequest {
     model: model.to_string(),
@@ -33,6 +44,8 @@ pub async fn get_completions(
     max_tokens,
     reasoning: reasoning.map(|effort| ReasoningRequest { effort }),
     stream: false,
+    usage: Some(UsageRequest { include: true }),
+    plugins,
   };
   let response = builder.json(&request).send().await?;
 
@@ -50,10 +63,13 @@ pub async fn stream_completions(
   custom_key: Option<String>,
   max_tokens: Option<u32>,
   reasoning: Option<ReasoningEffort>,
+  enable_pdf: bool,
 ) -> Result<EventSource, OpenrouterError> {
   let client = client.lock().await;
   let builder = client.request_builder(Method::POST, COMPLETIONS_PATH, custom_key)?;
   drop(client);
+
+  let plugins = if enable_pdf { vec![pdf_plugin()] } else { vec![] };
 
   let request = CompletionRequest {
     model: model.to_string(),
@@ -61,6 +77,8 @@ pub async fn stream_completions(
     max_tokens,
     reasoning: reasoning.map(|effort| ReasoningRequest { effort }),
     stream: true,
+    usage: Some(UsageRequest { include: true }),
+    plugins,
   };
 
   let request = builder.json(&request);

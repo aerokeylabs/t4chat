@@ -233,6 +233,26 @@ pub struct ReasoningRequest {
 
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case")]
+pub struct UsageRequest {
+  pub include: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PdfOptions {
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub engine: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PluginRequest {
+  pub id: String,
+  pub pdf: PdfOptions,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct CompletionRequest {
   pub model: String,
   pub messages: Vec<MessageRequest>,
@@ -242,6 +262,12 @@ pub struct CompletionRequest {
 
   #[serde(skip_serializing_if = "Option::is_none")]
   pub max_tokens: Option<u32>,
+
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub usage: Option<UsageRequest>,
+
+  #[serde(skip_serializing_if = "Vec::is_empty")]
+  pub plugins: Vec<PluginRequest>,
 
   pub stream: bool,
 }

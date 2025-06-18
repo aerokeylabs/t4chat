@@ -112,10 +112,13 @@ struct ChatContext {
   set_title: bool,
   messages: Vec<MessageRequest>,
   reasoning_effort: Option<ReasoningEffort>,
+  enable_pdf: bool,
 }
 
-fn encode_base64(bytes: &[u8]) -> String {
-  base64::engine::general_purpose::STANDARD.encode(bytes)
+fn encode_base64(mime_type: String, bytes: &[u8]) -> String {
+  let base64 = base64::engine::general_purpose::STANDARD.encode(bytes);
+
+  format!("data:{mime_type};base64,{base64}")
 }
 
 async fn convex_to_messages(client: &mut ConvexClient, message: ConvexMessage) -> anyhow::Result<MessageRequest> {
@@ -158,7 +161,7 @@ async fn convex_to_messages(client: &mut ConvexClient, message: ConvexMessage) -
 
         match attachment.mime_type.as_ref() {
           "image/png" | "image/jpeg" | "image/webp" => {
-            let base64_data = encode_base64(&bytes);
+            let base64_data = encode_base64(attachment.mime_type, &bytes);
             ContentPart::Image {
               image_url: ImageUrl { url: base64_data },
             }
@@ -170,7 +173,7 @@ async fn convex_to_messages(client: &mut ConvexClient, message: ConvexMessage) -
             text: String::from_utf8_lossy(&bytes).to_string(),
           },
           "application/pdf" => {
-            let base64_data = encode_base64(&bytes);
+            let base64_data = encode_base64(attachment.mime_type, &bytes);
             ContentPart::File {
               file: File {
                 filename: attachment.name.clone(),
@@ -247,8 +250,20 @@ pub async fn create_message(
 
   let mut messages = vec![];
 
+  let mut enable_pdf = false;
+
   for message in convex_messages {
-    messages.push(convex_to_messages(&mut convex, message).await?);
+    let message = convex_to_messages(&mut convex, message).await?;
+
+    if message
+      .content
+      .iter()
+      .any(|part| matches!(part, ContentPart::File { .. }))
+    {
+      enable_pdf = true;
+    }
+
+    messages.push(message);
   }
 
   let complete_args = CompleteMessageArgs {
@@ -291,6 +306,7 @@ pub async fn create_message(
     set_title,
     messages,
     reasoning_effort,
+    enable_pdf,
   };
 
   tokio::spawn(async move {
@@ -401,6 +417,7 @@ async fn stream_chat(
     context.custom_key.clone(),
     None,
     context.reasoning_effort,
+    context.enable_pdf,
   )
   .await?;
 

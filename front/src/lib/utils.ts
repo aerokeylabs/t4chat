@@ -20,3 +20,9 @@ export function mouseEventToRange(e: MouseEvent, el: HTMLElement, min: number, m
 export function roundToStep(value: number, step: number): number {
   return Math.round(value / step) * step;
 }
+
+export async function copyToClipboard(text: string): Promise<void> {
+  await navigator.clipboard.writeText(text).catch((err) => {
+    console.error('Failed to copy text: ', err);
+  });
+}

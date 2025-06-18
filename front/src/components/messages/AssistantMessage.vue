@@ -3,10 +3,11 @@ import Prose from '@/components/Prose.vue';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { computed, ref, watch } from 'vue';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useReactiveQuery } from '@/composables/convex';
 import { api } from '@/convex/_generated/api';
 import type { AssistantMessage } from '@/lib/types/convex';
-import { displayModelName } from '@/lib/utils';
+import { copyToClipboard, displayModelName } from '@/lib/utils';
 import { ClockIcon, CopyIcon, CpuIcon, RefreshCcwIcon, SplitIcon, ZapIcon } from 'lucide-vue-next';
 import moment from 'moment';
 
@@ -63,6 +64,10 @@ const reasoning = computed(() => {
 
   return reasoning;
 });
+
+function copy() {
+  copyToClipboard(props.message.parts.map((part) => part.text).join('\n'));
+}
 </script>
 
 <template>
@@ -120,15 +125,32 @@ const reasoning = computed(() => {
     </div>
 
     <div class="message-controls">
-      <Button variant="ghost" size="icon-sm">
-        <CopyIcon />
-      </Button>
-      <Button variant="ghost" size="icon-sm">
-        <SplitIcon />
-      </Button>
-      <Button variant="ghost" size="icon-sm">
-        <RefreshCcwIcon />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger>
+          <Button variant="ghost" size="icon-sm" @click="copy">
+            <CopyIcon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Copy Message</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger>
+          <Button variant="ghost" size="icon-sm">
+            <SplitIcon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Branch off</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger>
+          <Button variant="ghost" size="icon-sm">
+            <RefreshCcwIcon />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Retry Message</TooltipContent>
+      </Tooltip>
 
       <span>{{ modelName }}</span>
 

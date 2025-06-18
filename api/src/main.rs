@@ -7,7 +7,7 @@ use api::types::export_types;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-  dotenvy::dotenv().context("failed to load .env file")?;
+  let _ = dotenvy::dotenv();
 
   logger::init_from_env().context("failed to initialize logger")?;
 

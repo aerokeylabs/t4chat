@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import SensitiveInput from '@/components/input/SensitiveInput.vue';
 import { Label } from '@/components/ui/label';
-import { useSettings } from '@/composables/settings';
+import { useKeys } from '@/composables/keys';
 
-const { keys } = useSettings();
+const keys = useKeys();
 </script>
 
 <template>

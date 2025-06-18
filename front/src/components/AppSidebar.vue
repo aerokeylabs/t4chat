@@ -209,7 +209,7 @@ const isOnNewPage = computed(() => {
     </div>
   </Teleport>
 
-  <Sidebar>
+  <Sidebar variant="inset">
     <SidebarHeader>
       <SidebarMenuItem class="flex h-16 items-center justify-center">
         <span>thingy</span>

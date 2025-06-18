@@ -1,7 +1,4 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
-import { useQuery, useMutation } from '@/composables/convex';
-import { api } from '@/convex/_generated/api';
 import Name from '@/components/Name.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,69 +12,18 @@ import {
   TagsInputItemDelete,
   TagsInputItemText,
 } from '@/components/ui/tags-input';
+import { useSettings } from '@/composables/settings';
 
-const { data: settings } = useQuery(api.settings.getSettings);
-const updateSettings = useMutation(api.settings.updateSettings);
-
-const customizationState = reactive({
-  userName: '',
-  userOccupation: '',
-  userTraits: [] as string[],
-  hidePersonalInfo: false,
-  mainFont: 'Inter',
-  codeFont: 'Fira Code',
-  isInitialized: false,
-});
-
-watch(
-  () => settings.value,
-  (newSettings) => {
-    if (newSettings) {
-      customizationState.userName = newSettings.userName || '';
-      customizationState.userOccupation = newSettings.userOccupation || '';
-      customizationState.userTraits = newSettings.userTraits || [];
-      customizationState.hidePersonalInfo = newSettings.hidePersonalInfo || false;
-      customizationState.mainFont = newSettings.mainFont || 'Inter';
-      customizationState.codeFont = newSettings.codeFont || 'Fira Code';
-      customizationState.isInitialized = true;
-    }
-  },
-  { immediate: true },
-);
-
-const saveSettings = async () => {
-  if (!customizationState.isInitialized) return;
-
-  const settingsToUpdate = {
-    userName: customizationState.userName,
-    userOccupation: customizationState.userOccupation,
-    userTraits: [...customizationState.userTraits],
-    hidePersonalInfo: customizationState.hidePersonalInfo,
-    mainFont: customizationState.mainFont,
-    codeFont: customizationState.codeFont,
-  };
-
-  try {
-    await updateSettings({ settings: settingsToUpdate });
-  } catch (error) {
-    console.error('Failed to update settings:', error);
-  }
-};
-
-watch(() => customizationState.userName, saveSettings);
-watch(() => customizationState.userOccupation, saveSettings);
-watch(() => [...customizationState.userTraits], saveSettings, { deep: true });
-watch(() => customizationState.hidePersonalInfo, saveSettings, { immediate: true });
-watch(() => customizationState.mainFont, saveSettings);
-watch(() => customizationState.codeFont, saveSettings);
+const settings = useSettings();
 
 const mainFontOptions = ['Inter', 'Roboto', 'Open Sans', 'Lato', 'Montserrat'];
 const codeFontOptions = ['Fira Code', 'JetBrains Mono', 'Source Code Pro', 'Hack', 'Consolas'];
 const presetTraits = ['friendly', 'witty', 'concise', 'curious', 'empathetic', 'creative', 'patient'];
 
 function addTrait(trait: string) {
-  if (!customizationState.userTraits.includes(trait)) {
-    customizationState.userTraits = [...customizationState.userTraits, trait];
+  if (settings.customization == null) return;
+  if (!settings.customization.userTraits.includes(trait)) {
+    settings.customization.userTraits = [...settings.customization.userTraits, trait];
   }
 }
 </script>
@@ -89,20 +35,25 @@ function addTrait(trait: string) {
       <p class="text-muted-foreground">Personalize your <Name /> experience.</p>
     </div>
 
-    <div class="space-y-6">
+    <div class="space-y-6" v-if="settings.customization != null">
       <div>
         <h2 class="text-xl font-semibold">Personal Information</h2>
         <div class="mt-4 space-y-4">
           <div class="space-y-2">
             <Label for="username">What should <Name /> call you?</Label>
-            <Input id="username" v-model="customizationState.userName" placeholder="Enter your name" class="max-w-sm" />
+            <Input
+              id="username"
+              v-model="settings.customization.userName"
+              placeholder="Enter your name"
+              class="max-w-sm"
+            />
           </div>
 
           <div class="space-y-2">
             <Label for="occupation">What do you do?</Label>
             <Input
               id="occupation"
-              v-model="customizationState.userOccupation"
+              v-model="settings.customization.userOccupation"
               placeholder="Engineer, student, etc."
               class="max-w-sm"
             />
@@ -118,8 +69,8 @@ function addTrait(trait: string) {
         <div class="mt-4 flex flex-col gap-4">
           <div>
             <p class="text-muted-foreground mb-2 text-sm">Add traits:</p>
-            <TagsInput v-model="customizationState.userTraits" class="max-w-md">
-              <TagsInputItem v-for="trait in customizationState.userTraits" :key="trait" :value="trait">
+            <TagsInput v-model="settings.customization.userTraits" class="max-w-md">
+              <TagsInputItem v-for="trait in settings.customization.userTraits" :key="trait" :value="trait">
                 <TagsInputItemText />
                 <TagsInputItemDelete />
               </TagsInputItem>
@@ -131,7 +82,7 @@ function addTrait(trait: string) {
             <p class="text-muted-foreground mb-2 text-sm">Preset traits:</p>
             <div class="flex flex-wrap gap-2">
               <Button
-                v-for="trait in presetTraits.filter((t) => !customizationState.userTraits.includes(t))"
+                v-for="trait in presetTraits.filter((t) => !settings.customization?.userTraits.includes(t))"
                 :key="trait"
                 variant="outline"
                 size="sm"
@@ -140,7 +91,7 @@ function addTrait(trait: string) {
                 {{ trait }}
               </Button>
               <span
-                v-if="presetTraits.every((t) => customizationState.userTraits.includes(t))"
+                v-if="presetTraits.every((t) => settings.customization?.userTraits.includes(t))"
                 class="text-muted-foreground text-sm"
               >
                 All preset traits added.
@@ -160,7 +111,7 @@ function addTrait(trait: string) {
                 <Label for="hidePersonalInfo" class="cursor-pointer">Hide Personal Information</Label>
               </div>
               <div class="flex items-center gap-2">
-                <Switch id="hidePersonalInfo" v-model:modelValue="customizationState.hidePersonalInfo" />
+                <Switch id="hidePersonalInfo" v-model:modelValue="settings.customization.hidePersonalInfo" />
               </div>
             </div>
             <p class="text-muted-foreground text-xs">
@@ -170,7 +121,7 @@ function addTrait(trait: string) {
 
           <div class="space-y-2">
             <Label for="mainFont">Main Font</Label>
-            <Select v-model="customizationState.mainFont">
+            <Select v-model="settings.customization.mainFont">
               <SelectTrigger class="w-[200px]">
                 <SelectValue placeholder="Select a font" />
               </SelectTrigger>
@@ -184,7 +135,7 @@ function addTrait(trait: string) {
 
           <div class="space-y-2">
             <Label for="codeFont">Code Font</Label>
-            <Select v-model="customizationState.codeFont">
+            <Select v-model="settings.customization.codeFont">
               <SelectTrigger class="w-[200px]">
                 <SelectValue placeholder="Select a font" />
               </SelectTrigger>
@@ -197,6 +148,10 @@ function addTrait(trait: string) {
           </div>
         </div>
       </div>
+    </div>
+
+    <div v-else>
+      <p class="text-muted-foreground">Loading customization settings...</p>
     </div>
   </div>
 </template>

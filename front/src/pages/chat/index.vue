@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import { useChatbox } from '@/composables/chatbox';
+import { useSettings } from '@/composables/settings';
 import { useStreamingMessage } from '@/composables/streamingMessage';
 import { useUser } from '@clerk/vue';
 import { CodeIcon, GraduationCapIcon, NewspaperIcon, SparklesIcon } from 'lucide-vue-next';
@@ -81,11 +82,16 @@ const prompts = computed(() => {
 
 const { value, empty } = useChatbox();
 const { isStreaming } = useStreamingMessage();
+
+const settings = useSettings();
 </script>
 
 <template>
   <section class="new-chat-page" :class="{ 'hide-suggestions': !empty || isStreaming }">
-    <h1 class="mb-2 text-3xl font-semibold">How can I help you, {{ user?.firstName ?? 'someone' }}?</h1>
+    <h1 v-if="settings.hidePersonalInfo || user?.firstName == null" class="mb-2 text-3xl font-semibold">
+      How can I help you?
+    </h1>
+    <h1 v-else class="mb-2 text-3xl font-semibold">How can I help you, {{ user.firstName }}?</h1>
 
     <div class="flex gap-2">
       <Button

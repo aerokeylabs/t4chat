@@ -2,7 +2,7 @@
 import AppSidebar from '@/components/AppSidebar.vue';
 import Chatbox from '@/components/Chatbox.vue';
 import LoadingDots from '@/components/LoadingDots.vue';
-import { SidebarProvider } from '@/components/ui/sidebar';
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useMutation } from '@/composables/convex';
 import { useSelectedModel } from '@/composables/selectedModel';
 import { useStreamingMessage } from '@/composables/streamingMessage';
@@ -259,29 +259,31 @@ const chatboxHeightStyle = computed(() => ({ '--chatbox-height': `${chatboxHeigh
   <SidebarProvider v-model:open="sidebarOpen">
     <AppSidebar :open="sidebarOpen" />
 
-    <main class="chat">
-      <div ref="messages-container" class="messages custom-scrollbar" :style="chatboxHeightStyle">
-        <RouterView />
+    <SidebarInset>
+      <main class="chat">
+        <div ref="messages-container" class="messages custom-scrollbar" :style="chatboxHeightStyle">
+          <RouterView />
 
-        <div v-if="isWaitingForFirstChunk" class="loading-indicator-container">
-          <LoadingDots />
+          <div v-if="isWaitingForFirstChunk" class="loading-indicator-container">
+            <LoadingDots />
+          </div>
         </div>
-      </div>
 
-      <div
-        v-if="showScrollToBottomPill"
-        class="scroll-to-bottom-pill"
-        @click="scrollToBottom(true)"
-        :style="chatboxHeightStyle"
-      >
-        <span>Scroll to bottom</span>
-        <ChevronDownIcon />
-      </div>
+        <div
+          v-if="showScrollToBottomPill"
+          class="scroll-to-bottom-pill"
+          @click="scrollToBottom(true)"
+          :style="chatboxHeightStyle"
+        >
+          <span>Scroll to bottom</span>
+          <ChevronDownIcon />
+        </div>
 
-      <div ref="chatbox-container" class="chatbox-container">
-        <Chatbox @send="onSend" @cancel="onCancel" />
-      </div>
-    </main>
+        <div ref="chatbox-container" class="chatbox-container">
+          <Chatbox @send="onSend" @cancel="onCancel" />
+        </div>
+      </main>
+    </SidebarInset>
   </SidebarProvider>
 </template>
 

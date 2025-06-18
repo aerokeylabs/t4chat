@@ -12,12 +12,12 @@ export const convex: Plugin = {
       throw new Error('`convexUrl` is required to initialize Convex plugin');
     }
 
-    try {
-      const isConvexSignedIn = ref(false);
-      const isConvexLoading = ref(true);
-      const client = new ConvexClient(convexUrl);
+    app.runWithContext(() => {
+      try {
+        const isConvexSignedIn = ref(false);
+        const isConvexLoading = ref(true);
+        const client = new ConvexClient(convexUrl);
 
-      app.runWithContext(() => {
         const { getToken, isSignedIn } = useAuth();
 
         function onChange(value?: boolean) {
@@ -51,13 +51,13 @@ export const convex: Plugin = {
         }
 
         watch(isSignedIn, (v) => onSignedIn(v), { immediate: true });
-      });
 
-      app.provide(CONVEX_CLIENT_KEY, client);
-      app.provide(IS_CONVEX_SIGNED_IN_KEY, isConvexSignedIn);
-      app.provide(IS_CONVEX_LOADING_KEY, isConvexLoading);
-    } catch (error) {
-      console.error('failed to create convex client:', error);
-    }
+        app.provide(CONVEX_CLIENT_KEY, client);
+        app.provide(IS_CONVEX_SIGNED_IN_KEY, isConvexSignedIn);
+        app.provide(IS_CONVEX_LOADING_KEY, isConvexLoading);
+      } catch (error) {
+        console.error('failed to create convex client:', error);
+      }
+    });
   },
 };

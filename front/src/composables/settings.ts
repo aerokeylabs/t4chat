@@ -1,23 +1,96 @@
-import { useLocalStorage } from '@vueuse/core';
-import { defineStore, acceptHMRUpdate } from 'pinia';
+import { useMutation, useQuery } from '@/composables/convex';
+import { api } from '@/convex/_generated/api';
+import { syncRef, useDebounceFn } from '@vueuse/core';
+import { acceptHMRUpdate, defineStore } from 'pinia';
+import { computed, customRef, ref, toRaw, watch } from 'vue';
 
-const useKeys = defineStore('keys', () => {
-  const openrouter = useLocalStorage<string>('keys_openrouter', '');
+export type CustomizationSettings = {
+  userName: string;
+  userOccupation: string;
+  userTraits: string[];
+  hidePersonalInfo: boolean;
+  mainFont: string;
+  codeFont: string;
 
-  return {
-    openrouter,
-  };
-});
+  _updateFromApi?: boolean;
+};
 
 export const useSettings = defineStore('settings', () => {
-  const keys = useKeys();
+  const settingsMutation = useMutation(api.settings.updateSettings);
+
+  const { data, error } = useQuery(api.settings.getSettings);
+
+  watch(error, (err) => {
+    if (err) {
+      console.error('Error fetching settings:', err);
+    }
+  });
+
+  function updateCustomization(settings?: Partial<CustomizationSettings> | null) {
+    if (settings == null) return;
+
+    delete settings._updateFromApi;
+
+    return settingsMutation({ settings });
+  }
+
+  const debouncedUpdateCustomization = useDebounceFn(updateCustomization, 500);
+
+  const innerCustomization = customRef<CustomizationSettings | null>((track, trigger) => {
+    let value: CustomizationSettings | null = null;
+
+    return {
+      get() {
+        track();
+        return value;
+      },
+      set(newValue) {
+        if (newValue?._updateFromApi === true) console.trace('Skipping committing update from API:', newValue);
+        else console.trace('committing new value:', newValue);
+        if (newValue != null && newValue._updateFromApi !== true) debouncedUpdateCustomization(toRaw(newValue));
+
+        value = newValue;
+
+        if (value != null) value._updateFromApi = false;
+
+        trigger();
+      },
+    };
+  });
+
+  watch(
+    data,
+    (data) => {
+      if (data == null) return null;
+      console.trace('data updated:', data);
+
+      const { userName, userOccupation, userTraits, hidePersonalInfo, mainFont, codeFont } = data;
+
+      innerCustomization.value = {
+        userName,
+        userOccupation,
+        userTraits,
+        hidePersonalInfo,
+        mainFont,
+        codeFont,
+        _updateFromApi: true,
+      };
+    },
+    { immediate: true, deep: true },
+  );
+
+  const hidePersonalInfo = computed(() => innerCustomization.value?.hidePersonalInfo ?? true);
+
+  const customization = ref<CustomizationSettings | null>(null);
+
+  syncRef(customization, innerCustomization, { deep: true });
 
   return {
-    keys,
+    customization,
+    hidePersonalInfo,
   };
 });
 
 if (import.meta.hot) {
-  import.meta.hot.accept(acceptHMRUpdate(useKeys, import.meta.hot));
   import.meta.hot.accept(acceptHMRUpdate(useSettings, import.meta.hot));
 }

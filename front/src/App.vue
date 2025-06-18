@@ -5,14 +5,15 @@ import { RouterView } from 'vue-router';
 import CommandMenu from '@/components/CommandMenu.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-const isAuthenticated = useConvexAuth();
+const { isLoading, isSignedIn } = useConvexAuth();
 </script>
 
 <template>
   <TooltipProvider disable-hoverable-content>
     <Toaster />
     <CommandMenu />
-    <RouterView v-if="isAuthenticated" />
+    <RouterView v-if="isSignedIn" />
+    <main v-else-if="isLoading">Loading...</main>
     <main v-else>not authenticated</main>
   </TooltipProvider>
 </template>
